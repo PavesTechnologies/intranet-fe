@@ -35,7 +35,7 @@ const hasPolicyIssue = (lineItems) => (lineItems || []).some((l) => (l.policyVio
  * offers the fast quick-approve line panel; "Review" opens the full ExpenseReviewPanel (receipt +
  * full detail + timeline) for reports that need a closer look.
  */
-export default function PendingApprovalsPage() {
+export default function PendingApprovalsPage({ searchTerm = "" }) {
   const [page, setPage] = useState(0);
   const [expandedReportId, setExpandedReportId] = useState(null);
   const [rejectingReport, setRejectingReport] = useState(null);
