@@ -287,38 +287,21 @@ export default function Overview() {
     [paginatedConfigs]
   );
 
-  const kpiCards = [
+  const approvalKpis = [
     {
       key: "TOTAL",
-      label: "Total",
-      subLabel: "Billing Configurations",
+      label: "Total Billing",
+      subLabel: "Configurations",
       value: stats?.total ?? configs.length,
       icon: FolderKanban,
       color: "bg-[#0A0082] text-white",
       active: approvalStatusFilter === "ALL" && configStatusFilter === "ALL" && !filters.search,
-    },
-    {
-      key: "ACTIVE",
-      label: "Active",
-      subLabel: "Configurations",
-      value: stats?.active ?? configs.filter((c) => c.billingStatus === "ACTIVE").length,
-      icon: CheckCircle2,
-      color: "bg-emerald-600 text-white",
-      active: configStatusFilter === "ACTIVE" && approvalStatusFilter === "ALL",
-    },
-    {
-      key: "INACTIVE",
-      label: "Inactive",
-      subLabel: "Configurations",
-      value: stats?.inactive ?? configs.filter((c) => c.billingStatus === "INACTIVE").length,
-      icon: Ban,
-      color: "bg-slate-500 text-white",
-      active: configStatusFilter === "INACTIVE" && approvalStatusFilter === "ALL",
+      isTotal: true,
     },
     {
       key: "APPROVED",
       label: "Approved",
-      subLabel: "Configurations",
+      subLabel: null,
       value: stats?.approved ?? configs.filter((c) => c.approvalStatus === "APPROVED").length,
       icon: CheckCircle2,
       color: "bg-teal-600 text-white",
@@ -326,8 +309,8 @@ export default function Overview() {
     },
     {
       key: "PENDING_APPROVAL",
-      label: "Pending",
-      subLabel: "Approvals",
+      label: "Pending Approval",
+      subLabel: null,
       value: stats?.pending ?? configs.filter((c) => c.approvalStatus === "PENDING_APPROVAL").length,
       icon: Clock,
       color: "bg-amber-500 text-white",
@@ -336,7 +319,7 @@ export default function Overview() {
     {
       key: "DRAFT",
       label: "Draft",
-      subLabel: "Configurations",
+      subLabel: null,
       value: stats?.draft ?? configs.filter((c) => c.approvalStatus === "DRAFT").length,
       icon: FileText,
       color: "bg-slate-400 text-white",
@@ -345,7 +328,7 @@ export default function Overview() {
     {
       key: "REJECTED",
       label: "Rejected",
-      subLabel: "Configurations",
+      subLabel: null,
       value: stats?.rejected ?? configs.filter((c) => c.approvalStatus === "REJECTED").length,
       icon: XCircle,
       color: "bg-rose-600 text-white",
@@ -353,8 +336,29 @@ export default function Overview() {
     },
   ];
 
+  const configurationKpis = [
+    {
+      key: "ACTIVE",
+      label: "Active",
+      subLabel: null,
+      value: stats?.active ?? configs.filter((c) => c.billingStatus === "ACTIVE").length,
+      icon: CheckCircle2,
+      color: "bg-emerald-600 text-white",
+      active: configStatusFilter === "ACTIVE" && approvalStatusFilter === "ALL",
+    },
+    {
+      key: "INACTIVE",
+      label: "Inactive",
+      subLabel: null,
+      value: stats?.inactive ?? configs.filter((c) => c.billingStatus === "INACTIVE").length,
+      icon: Ban,
+      color: "bg-slate-500 text-white",
+      active: configStatusFilter === "INACTIVE" && approvalStatusFilter === "ALL",
+    },
+  ];
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* 1. Page Header */}
       <PageHeader
         title="Project Billing Setup — Overview"
@@ -369,26 +373,64 @@ export default function Overview() {
         }
       />
 
-      {/* 2. KPIs Row — each card is also a status filter for the table below */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
-        {kpiCards.map((kpi) => (
-          <button
-            key={kpi.key}
-            type="button"
-            onClick={() => handleKpiClick(kpi.key)}
-            className="text-left rounded-xl transition-transform active:scale-[0.99] focus:outline-none"
-          >
-            <ARKPICard
-              label={kpi.label}
-              subLabel={kpi.subLabel}
-              value={loadingStats ? "…" : kpi.value}
-              icon={<kpi.icon className="h-5 w-5" />}
-              color={kpi.color}
-              active={kpi.active}
-              className="h-full w-full cursor-pointer bg-white shadow-sm transition-all hover:shadow-md"
-            />
-          </button>
-        ))}
+      {/* 2. KPIs Sections — divided into Approval Status and Configuration Status */}
+      <div className="space-y-3">
+        {/* Section 1: Approval Status */}
+        <div className="space-y-1.5">
+          <h3 className="text-sm font-bold text-slate-800 px-0.5 select-none">
+            Approval Status
+          </h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {approvalKpis.map((kpi) => (
+              <button
+                key={kpi.key}
+                type="button"
+                onClick={() => handleKpiClick(kpi.key)}
+                className="text-left rounded-xl transition-transform active:scale-[0.99] focus:outline-none"
+              >
+                <ARKPICard
+                  label={kpi.label}
+                  subLabel={kpi.subLabel}
+                  value={loadingStats ? "…" : kpi.value}
+                  icon={<kpi.icon className="h-5 w-5" />}
+                  color={kpi.color}
+                  active={kpi.active}
+                  className={cn(
+                    "h-full w-full cursor-pointer bg-white shadow-sm transition-all hover:shadow-md",
+                    kpi.isTotal && !kpi.active && "border-indigo-200/80 bg-gradient-to-br from-indigo-50/30 to-white"
+                  )}
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Section 2: Configuration Status */}
+        <div className="space-y-1.5">
+          <h3 className="text-sm font-bold text-slate-800 px-0.5 select-none">
+            Configuration Status
+          </h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {configurationKpis.map((kpi) => (
+              <button
+                key={kpi.key}
+                type="button"
+                onClick={() => handleKpiClick(kpi.key)}
+                className="text-left rounded-xl transition-transform active:scale-[0.99] focus:outline-none"
+              >
+                <ARKPICard
+                  label={kpi.label}
+                  subLabel={kpi.subLabel}
+                  value={loadingStats ? "…" : kpi.value}
+                  icon={<kpi.icon className="h-5 w-5" />}
+                  color={kpi.color}
+                  active={kpi.active}
+                  className="h-full w-full cursor-pointer bg-white shadow-sm transition-all hover:shadow-md"
+                />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* 3. Billing Configurations */}

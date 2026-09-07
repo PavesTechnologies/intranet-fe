@@ -30,9 +30,9 @@ export default function ARKPICard({
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="mb-0.5 leading-tight min-h-[30px] flex flex-col justify-center">
+        <div className="mb-0.5 leading-tight min-h-[32px] flex flex-col justify-center">
           <p
-            className="text-xs font-semibold text-slate-700 truncate"
+            className="text-xs font-semibold text-slate-700 line-clamp-2"
             title={typeof label === "string" ? label : undefined}
           >
             {label}
