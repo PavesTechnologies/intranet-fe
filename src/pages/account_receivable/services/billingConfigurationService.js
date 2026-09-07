@@ -1546,8 +1546,12 @@ export const getBillingConfigurationStats = async () => {
   return {
     total: configurations.length,
     active: configurations.filter(
-      (config) => config.approvalStatus === "APPROVED" && config.billingStatus === "ACTIVE",
+      (config) => config.billingStatus === "ACTIVE",
     ).length,
+    inactive: configurations.filter(
+      (config) => config.billingStatus === "INACTIVE",
+    ).length,
+    approved: configurations.filter((config) => config.approvalStatus === "APPROVED").length,
     draft: configurations.filter((config) => config.approvalStatus === "DRAFT").length,
     pending: configurations.filter((config) => config.approvalStatus === "PENDING_APPROVAL").length,
     rejected: configurations.filter((config) => config.approvalStatus === "REJECTED").length,
