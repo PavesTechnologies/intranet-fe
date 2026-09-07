@@ -1,4 +1,5 @@
-import { Layers, Calendar, DollarSign, CreditCard, ShieldCheck, Tag } from "lucide-react";
+import { getBillingTypeDisplayName } from "../../utils/billingType";
+import StatusBadge from "../../../../components/status/statusbadge";
 
 const BILLING_TYPE_LABELS = {
   TIME_MATERIAL: "Time & Material",
@@ -12,59 +13,41 @@ const frequencyLabel = (freq) => {
   return freq.charAt(0) + freq.slice(1).toLowerCase();
 };
 
-export default function BillingSummaryGrid({ config = {} }) {
-  const isTM =
-    config.billingType === "TIME_MATERIAL" ||
-    config.billingType === "Timesheet Based" ||
-    config.billingType === "Time & Material";
+function Field({ label, children }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-2 text-sm">
+      <span className="text-slate-500">{label}</span>
+      <span className="text-right font-semibold text-slate-800">{children ?? "—"}</span>
+    </div>
+  );
+}
 
-  const fields = [
-    {
-      label: "Billing Type",
-      value: BILLING_TYPE_LABELS[config.billingType] || config.billingType || "—",
-      icon: Layers,
-    },
-    {
-      label: "Frequency",
-      value: frequencyLabel(config.billingFrequency),
-      icon: Calendar,
-    },
-    {
-      label: "Rate Model",
-      value: isTM ? "Standard Flat Rate" : "Standard Retainer Schedule",
-      icon: Tag,
-    },
-    {
-      label: "Currency",
-      value: config.currency || "INR",
-      icon: DollarSign,
-      isMono: true,
-    },
-    {
-      label: "Payment Terms",
-      value: config.paymentTerms || "Net 30 Days",
-      icon: CreditCard,
-    },
-    {
-      label: "Tax Region",
-      value: config.taxRegion || "Domestic (GST 18%)",
-      icon: ShieldCheck,
-    },
-  ];
+// Business-facing snapshot fields only. Tax Region is intentionally omitted
+// here — it drives the backend tax engine, not this workspace's UI.
+export default function BillingSummaryGrid({ config = {} }) {
+  const billingTypeLabel =
+    BILLING_TYPE_LABELS[config.billingType] || getBillingTypeDisplayName(config.billingType) || "—";
 
   return (
-    <div className="flex flex-wrap gap-x-5 gap-y-2">
-      {fields.map((f, i) => (
-        <div key={i} className="flex items-center gap-1.5 text-xs">
-          <f.icon className="h-3 w-3 flex-shrink-0 text-slate-400" />
-          <span className="text-slate-400">{f.label}:</span>
-          <span
-            className={`font-semibold text-slate-800 ${f.isMono ? "font-mono tabular-nums text-indigo-700" : ""}`}
-          >
-            {f.value}
-          </span>
-        </div>
-      ))}
+    <div className="grid grid-cols-1 gap-x-10 sm:grid-cols-2">
+      <div className="divide-y divide-slate-100">
+        <Field label="Project">{config.projectName}</Field>
+        <Field label="Client">{config.client}</Field>
+        <Field label="Billing Type">{billingTypeLabel}</Field>
+        <Field label="Billing Frequency">{frequencyLabel(config.billingFrequency)}</Field>
+      </div>
+      <div className="divide-y divide-slate-100">
+        <Field label="Billing Period">
+          <span className="font-mono tabular-nums">{config.billingPeriod || "—"}</span>
+        </Field>
+        <Field label="Currency">
+          <span className="font-mono tabular-nums">{config.currency || "USD"}</span>
+        </Field>
+        <Field label="Payment Terms">{config.paymentTerms || "Net 30"}</Field>
+        <Field label="Status">
+          <StatusBadge label={config.billingStatus || "NOT_ACQUIRED"} size="sm" />
+        </Field>
+      </div>
     </div>
   );
 }

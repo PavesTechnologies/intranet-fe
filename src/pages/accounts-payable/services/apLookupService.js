@@ -70,6 +70,15 @@ export const apLookupService = {
     return res.data;
   },
 
+  /** RFQ lifecycle statuses — DRAFT / SENT / RESPONSE_RECEIVED / CLOSED (module_name "RFQ"). */
+  getRfqStatuses: async () => {
+    const res = await api.get(`${BASE}/system/status`, {
+      params: { module_name: "RFQ" },
+      headers: authHeaders(),
+    });
+    return res.data;
+  },
+
   getGstinDetails: async (gstin) => {
     const res = await api.get(`${BASE}/system/gstin/${encodeURIComponent(gstin)}`, {
       headers: authHeaders(),

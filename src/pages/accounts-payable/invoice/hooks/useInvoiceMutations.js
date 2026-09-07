@@ -60,6 +60,42 @@ export function useCreateInvoiceMutation() {
 }
 
 /**
+ * Stage 1 field corrections (Vendor/Buyer/Tax/Amounts). Each is a sparse PATCH against the
+ * backend's Redis extraction cache — never persisted to the Invoice DB and never revalidated
+ * automatically. Callers must re-run useValidateInvoiceFieldsMutation with { extraction_id }
+ * afterwards to get a fresh validation job against the corrected data.
+ */
+export function useCorrectVendorMutation() {
+  return useMutation({
+    mutationFn: ({ extractionId, patch }) => invoiceService.correctVendorFields(extractionId, patch),
+  });
+}
+
+export function useCorrectBuyerMutation() {
+  return useMutation({
+    mutationFn: ({ extractionId, patch }) => invoiceService.correctBuyerFields(extractionId, patch),
+  });
+}
+
+export function useCorrectTaxMutation() {
+  return useMutation({
+    mutationFn: ({ extractionId, patch }) => invoiceService.correctTaxFields(extractionId, patch),
+  });
+}
+
+export function useCorrectAmountsMutation() {
+  return useMutation({
+    mutationFn: ({ extractionId, patch }) => invoiceService.correctAmountsFields(extractionId, patch),
+  });
+}
+
+export function useConfirmExtractionSectionMutation() {
+  return useMutation({
+    mutationFn: ({ extractionId, section }) => invoiceService.confirmExtractionSection(extractionId, section),
+  });
+}
+
+/**
  * Direct status transition via PUT /apm/invoice/status-update/{invoice_id}?status_id={status_id}.
  * Used by the Invoice Management row action that moves an invoice from OCR Review Pending to
  * Pending Approval without going through the OCR Review Queue's field-correction flow.

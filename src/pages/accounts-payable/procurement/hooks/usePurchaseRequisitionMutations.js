@@ -84,6 +84,30 @@ export const useRejectPurchaseRequisition = (prId) => {
   });
 };
 
+export const useReturnPurchaseRequisition = (prId) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (reason) => procurementService.returnPurchaseRequisition(prId, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: PR_DETAIL_KEY(prId) });
+      invalidatePrLists(qc);
+      invalidatePendingApprovals(qc);
+    },
+  });
+};
+
+export const useResubmitPurchaseRequisition = (prId) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => procurementService.resubmitPurchaseRequisition(prId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: PR_DETAIL_KEY(prId) });
+      invalidatePrLists(qc);
+      invalidatePendingApprovals(qc);
+    },
+  });
+};
+
 // ── Purchase Requisition Lines (DRAFT only) ───────────────────────────────
 
 export const useAddPrLine = (prId) => {
@@ -124,7 +148,7 @@ export const useDeletePrLine = (prId) => {
 export const useSelectVendor = (prId) => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (quotationId) => procurementService.selectVendor(prId, quotationId),
+    mutationFn: ({ quotationId, reason }) => procurementService.selectVendor(prId, quotationId, reason),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: PR_DETAIL_KEY(prId) });
       qc.invalidateQueries({ queryKey: ["accountsPayable", "procurement", "quotations", prId] });

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "react-toastify";
-import { ArrowLeft, AlertTriangle } from "lucide-react";
+import { ArrowLeft, AlertTriangle, ArrowRight } from "lucide-react";
 import PageHeader from "../../../../components/ui/PageHeader";
 import Breadcrumb from "../../../../components/Breadcrumb/Breadcrumb";
 import Button from "../../../../components/Button/Button";
@@ -14,6 +14,7 @@ import { PageCard, PageCardContent } from "../../../../components/Cards/PageCard
 import { getApiErrorMessage } from "../../utils/apiError";
 import { formatCurrency, formatDate } from "../../utils/formatters";
 import { AP_ROUTES } from "../../constants/routes";
+import { useAuth } from "../../../../contexts/AuthContext";
 import { useApPermissions } from "../../hooks/useApPermissions";
 import { usePrStatuses } from "../../hooks/useApLookups";
 import usePurchaseRequisitionDetail from "../hooks/usePurchaseRequisitionDetail";
@@ -24,11 +25,15 @@ import {
   useCancelPurchaseRequisition,
   useApprovePurchaseRequisition,
   useRejectPurchaseRequisition,
+  useReturnPurchaseRequisition,
+  useResubmitPurchaseRequisition,
   useGeneratePurchaseOrder,
 } from "../hooks/usePurchaseRequisitionMutations";
 import { usePurchaseOrderList } from "../../purchase-order/hooks/usePurchaseOrders";
 import { PR_TRANSITIONS } from "../constants/procurementStatus";
 import PrLineEditor from "../components/PrLineEditor";
+import ProcurementWorkflowStepper from "../components/ProcurementWorkflowStepper";
+import RequesterLabel from "../components/RequesterLabel";
 
 function Field({ label, value }) {
   return (
@@ -42,7 +47,9 @@ function Field({ label, value }) {
 export default function PrDetailPage() {
   const { prId } = useParams();
   const navigate = useNavigate();
-  const { canManagePR, canApprovePR, canGeneratePO } = useApPermissions();
+  const { user } = useAuth();
+  const { canEditPR, canSubmitPR, canCancelPR, canApprovePR, canRejectPR, canReturnPR, canGeneratePO } =
+    useApPermissions();
 
   const { data: pr, isLoading, isError, error } = usePurchaseRequisitionDetail(prId);
   const { data: departments = [] } = useDepartments();
@@ -54,13 +61,18 @@ export default function PrDetailPage() {
   const cancelMutation = useCancelPurchaseRequisition(prId);
   const approveMutation = useApprovePurchaseRequisition(prId);
   const rejectMutation = useRejectPurchaseRequisition(prId);
+  const returnMutation = useReturnPurchaseRequisition(prId);
+  const resubmitMutation = useResubmitPurchaseRequisition(prId);
   const generatePoMutation = useGeneratePurchaseOrder(prId);
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [resubmitOpen, setResubmitOpen] = useState(false);
   const [approveComment, setApproveComment] = useState("");
   const [rejectComment, setRejectComment] = useState("");
+  const [returnComment, setReturnComment] = useState("");
 
   if (isLoading) {
     return (
@@ -100,8 +112,18 @@ export default function PrDetailPage() {
 
   const isDraft = statusCode === "DRAFT";
   const isPendingApproval = statusCode === "PENDING_APPROVAL";
+  const isReturned = statusCode === "RETURNED";
+  const isRequester = pr.created_by != null && user?.user_id != null && String(pr.created_by) === String(user.user_id);
   const canSubmit = isDraft && allowedNext.has("PENDING_APPROVAL") && (pr.purchase_requisition_line || []).length > 0;
   const canCancel = allowedNext.has("CANCELLED");
+  const canReturn = isPendingApproval && canReturnPR && allowedNext.has("RETURNED");
+  const canResubmit =
+    isReturned &&
+    isRequester &&
+    canSubmitPR &&
+    allowedNext.has("PENDING_APPROVAL") &&
+    (pr.purchase_requisition_line || []).length > 0;
+  const linesEditable = (isDraft || (isReturned && isRequester)) && canEditPR;
   const canGenerate =
     canGeneratePO &&
     statusCode === "VENDOR_SELECTION" &&
@@ -153,6 +175,28 @@ export default function PrDetailPage() {
     }
   };
 
+  const handleReturn = async () => {
+    if (!returnComment.trim()) return;
+    try {
+      await returnMutation.mutateAsync(returnComment.trim());
+      toast.success(`${pr.pr_number} returned to the requester for clarification.`);
+      setReturnOpen(false);
+      setReturnComment("");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Could not return this requisition."));
+    }
+  };
+
+  const handleResubmit = async () => {
+    try {
+      await resubmitMutation.mutateAsync();
+      toast.success(`${pr.pr_number} resubmitted for approval.`);
+      setResubmitOpen(false);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Could not resubmit this requisition."));
+    }
+  };
+
   const handleGeneratePo = async () => {
     try {
       const result = await generatePoMutation.mutateAsync();
@@ -177,17 +221,46 @@ export default function PrDetailPage() {
         }
       />
 
+      <div className="mb-4">
+        <ProcurementWorkflowStepper prStatusCode={statusCode} />
+      </div>
+
+      {isReturned && (
+        <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-4">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />
+            <div>
+              <p className="text-sm font-semibold text-orange-800">Returned for clarification</p>
+              <p className="mt-1 text-sm text-orange-700">
+                {pr.approval_comment || "The approver returned this requisition without a written reason."}
+              </p>
+              {isRequester && (
+                <p className="mt-2 text-xs text-orange-700">
+                  Update the requisition below, then use <span className="font-semibold">Resubmit</span> to send it
+                  back for approval.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <PageCard className="mb-4">
         <PageCardContent>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <StatusBadge label={statusName} />
             <div className="flex flex-wrap gap-2">
-              {isDraft && canManagePR && (
+              {isDraft && canSubmitPR && (
                 <Button variant="primary" onClick={handleSubmit} loading={submitMutation.isPending} loadingText="Submitting...">
                   Submit for Approval
                 </Button>
               )}
-              {canCancel && canManagePR && (
+              {canResubmit && (
+                <Button variant="primary" onClick={() => setResubmitOpen(true)}>
+                  Resubmit
+                </Button>
+              )}
+              {canCancel && canCancelPR && (
                 <Button variant="outline" onClick={() => setCancelOpen(true)}>
                   Cancel Requisition
                 </Button>
@@ -201,6 +274,7 @@ export default function PrDetailPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Field label="Requester" value={<RequesterLabel createdBy={pr.created_by} isRequester={isRequester} />} />
             <Field label="Department" value={departmentName} />
             <Field label="Purchase Category" value={categoryName} />
             <Field label="Priority" value={pr.priority} />
@@ -223,7 +297,7 @@ export default function PrDetailPage() {
       <PageCard className="mb-4">
         <PageCardContent>
           <h3 className="mb-3 text-sm font-semibold text-gray-700">PR Lines</h3>
-          <PrLineEditor prId={pr.id} lines={pr.purchase_requisition_line} editable={isDraft && canManagePR} />
+          <PrLineEditor prId={pr.id} lines={pr.purchase_requisition_line} editable={linesEditable} />
         </PageCardContent>
       </PageCard>
 
@@ -232,14 +306,23 @@ export default function PrDetailPage() {
           <PageCardContent>
             <h3 className="mb-3 text-sm font-semibold text-gray-700">Approval</h3>
 
-            {isPendingApproval && canApprovePR && (
+            {isPendingApproval && (canApprovePR || canRejectPR || canReturnPR) && (
               <div className="mb-4 flex flex-wrap justify-end gap-2">
-                <Button variant="outline" onClick={() => setRejectOpen(true)}>
-                  Reject
-                </Button>
-                <Button variant="primary" onClick={() => setApproveOpen(true)}>
-                  Approve
-                </Button>
+                {canReturn && canReturnPR && (
+                  <Button variant="outline" onClick={() => setReturnOpen(true)}>
+                    Return for Clarification
+                  </Button>
+                )}
+                {canRejectPR && (
+                  <Button variant="outline" onClick={() => setRejectOpen(true)}>
+                    Reject
+                  </Button>
+                )}
+                {canApprovePR && (
+                  <Button variant="primary" onClick={() => setApproveOpen(true)}>
+                    Approve
+                  </Button>
+                )}
               </div>
             )}
 
@@ -248,7 +331,11 @@ export default function PrDetailPage() {
                 <div>
                   <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Decision</dt>
                   <dd className="mt-1 text-sm font-medium text-gray-900">
-                    {statusCode === "REJECTED" ? "Rejected" : "Approved"}
+                    {statusCode === "REJECTED"
+                      ? "Rejected"
+                      : statusCode === "RETURNED"
+                        ? "Returned for Clarification"
+                        : "Approved"}
                   </dd>
                 </div>
                 <div>
@@ -257,7 +344,9 @@ export default function PrDetailPage() {
                 </div>
                 {pr.approval_comment && (
                   <div className="col-span-2 sm:col-span-3">
-                    <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Comment</dt>
+                    <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      {statusCode === "RETURNED" ? "Return Reason" : "Comment"}
+                    </dt>
                     <dd className="mt-1 text-sm text-gray-700">{pr.approval_comment}</dd>
                   </div>
                 )}
@@ -269,21 +358,32 @@ export default function PrDetailPage() {
         </PageCard>
       )}
 
-      {["APPROVED", "VENDOR_SELECTION", "PO_GENERATED"].includes(statusCode) && (
+      {["APPROVED", "VENDOR_SELECTION"].includes(statusCode) && (
         <PageCard className="mb-4">
           <PageCardContent>
-            <h3 className="mb-3 text-sm font-semibold text-gray-700">Quotation &amp; Vendor Selection</h3>
+            <h3 className="mb-3 text-sm font-semibold text-gray-700">RFQ &amp; Vendor Selection</h3>
             <p className="mb-3 text-sm text-gray-600">
-              {(pr.quotation || []).length} quotation(s) received
-              {pr.selected_vendor_id ? " — a vendor has been selected." : "."}
+              {statusCode === "APPROVED"
+                ? (pr.quotation || []).length > 0
+                  ? `${(pr.quotation || []).length} quotation(s) received so far.`
+                  : "This requisition is approved and ready to be sourced."
+                : `${(pr.quotation || []).length} quotation(s) received — select a vendor to continue.`}
             </p>
             <div className="flex flex-wrap gap-2">
               <Link to={`${AP_ROUTES.PROCUREMENT}?tab=quotation&prId=${pr.id}`}>
-                <Button variant="outline">View Quotations</Button>
+                <Button variant={statusCode === "APPROVED" ? "primary" : "outline"}>
+                  {statusCode === "APPROVED" ? (
+                    <>
+                      Continue to RFQ / Sourcing <ArrowRight className="h-4 w-4" />
+                    </>
+                  ) : (
+                    "View Quotations"
+                  )}
+                </Button>
               </Link>
               {statusCode === "VENDOR_SELECTION" && (
                 <Link to={`${AP_ROUTES.PROCUREMENT}?tab=vendorSelection&prId=${pr.id}`}>
-                  <Button variant="outline">Vendor Selection</Button>
+                  <Button variant="primary">Vendor Selection</Button>
                 </Link>
               )}
             </div>
@@ -381,6 +481,55 @@ export default function PrDetailPage() {
           required
         />
       </Modal>
+
+      <Modal
+        isOpen={returnOpen}
+        onClose={() => setReturnOpen(false)}
+        title="Return for clarification"
+        size="sm"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setReturnOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleReturn}
+              disabled={!returnComment.trim()}
+              loading={returnMutation.isPending}
+            >
+              Confirm Return
+            </Button>
+          </div>
+        }
+      >
+        <p className="mb-3 flex items-start gap-2 text-sm text-gray-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+          Return <span className="font-semibold">{pr.pr_number}</span> to the requester for clarification. A reason
+          is required.
+        </p>
+        <FormTextArea
+          label="Reason for return"
+          name="returnComment"
+          value={returnComment}
+          onChange={(e) => setReturnComment(e.target.value)}
+          placeholder="Explain what needs to be clarified or corrected..."
+          rows={3}
+          required
+        />
+      </Modal>
+
+      <ConfirmationModal
+        isOpen={resubmitOpen}
+        title="Resubmit Requisition"
+        message={`Resubmit ${pr.pr_number} for approval?`}
+        confirmText="Resubmit"
+        cancelText="Cancel"
+        isLoading={resubmitMutation.isPending}
+        onConfirm={handleResubmit}
+        onCancel={() => setResubmitOpen(false)}
+        variant="primary"
+      />
     </div>
   );
 }

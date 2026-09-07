@@ -24,6 +24,18 @@ const StatusBadge = ({ label, size = "md" }) => {
     displayLabel = "Tax Completed";
     bgColor = "bg-blue-100 border border-blue-300";
     textColor = "text-blue-800 font-bold";
+  } else if (rawUpper === "IN_PROGRESS" || normalized === "in progress") {
+    displayLabel = "In Progress";
+    bgColor = "bg-indigo-50 border border-indigo-200";
+    textColor = "text-indigo-700 font-medium";
+  } else if (rawUpper === "INVOICED" || normalized === "invoiced") {
+    displayLabel = "Invoiced";
+    bgColor = "bg-blue-100 border border-blue-300";
+    textColor = "text-blue-800 font-bold";
+  } else if (rawUpper === "CANCELLED" || rawUpper === "CANCELED" || normalized === "cancelled" || normalized === "canceled") {
+    displayLabel = "Cancelled";
+    bgColor = "bg-rose-100 border border-rose-300";
+    textColor = "text-rose-800 font-bold";
   } else if (normalized === "not acquired") {
     bgColor = "bg-slate-100 border border-slate-300";
     textColor = "text-slate-700 font-medium";
@@ -126,6 +138,18 @@ const StatusBadge = ({ label, size = "md" }) => {
     textColor = "text-blue-700";
   }
 
+  if (rawUpper === "APPROVED_FOR_PAYMENT" || normalized === "approved for payment" || rawUpper === "NONE") {
+    displayLabel = "Approved for Payment";
+    bgColor = "bg-indigo-100 border border-indigo-200";
+    textColor = "text-indigo-700 font-semibold";
+  }
+
+  if (rawUpper === "PAYMENT_COMPLETED" || normalized === "payment completed") {
+    displayLabel = "Payment Completed";
+    bgColor = "bg-emerald-100 border border-emerald-300";
+    textColor = "text-emerald-800 font-bold";
+  }
+
   if (normalized === "ready for payment") {
     bgColor = "bg-indigo-100";
     textColor = "text-indigo-700";
@@ -149,6 +173,37 @@ const StatusBadge = ({ label, size = "md" }) => {
   if (normalized === "disputed") {
     bgColor = "bg-rose-100";
     textColor = "text-rose-700";
+  }
+
+  // Procurement (PR / RFQ) statuses not covered by the generic keyword branches above.
+  if (normalized === "returned" || normalized === "returned for clarification") {
+    bgColor = "bg-orange-100 border border-orange-300";
+    textColor = "text-orange-800 font-bold";
+  }
+
+  if (normalized === "sent") {
+    bgColor = "bg-blue-100";
+    textColor = "text-blue-700";
+  }
+
+  if (normalized === "response received") {
+    bgColor = "bg-indigo-100";
+    textColor = "text-indigo-700";
+  }
+
+  if (normalized === "closed" || normalized === "vendor selection") {
+    bgColor = "bg-indigo-100";
+    textColor = "text-indigo-700";
+  }
+
+  if (normalized === "po generated" || normalized === "selected") {
+    bgColor = "bg-green-100";
+    textColor = "text-green-700";
+  }
+
+  if (normalized === "received") {
+    bgColor = "bg-blue-100";
+    textColor = "text-blue-700";
   }
 
   const sizeStyles = {

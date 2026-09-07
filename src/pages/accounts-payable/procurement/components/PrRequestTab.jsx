@@ -17,13 +17,14 @@ import usePurchaseRequisitions from "../hooks/usePurchaseRequisitions";
 import useDepartments from "../../system-configuration/hooks/useDepartments";
 import usePurchaseCategories from "../../system-configuration/hooks/usePurchaseCategories";
 import PrCreateModal from "./PrCreateModal";
+import EmptyState from "./EmptyState";
 
 const ALL = "";
 const DEFAULT_FILTERS = { departmentId: ALL, purchaseCategoryId: ALL, statusId: ALL, search: "" };
 
 export default function PrRequestTab() {
   const navigate = useNavigate();
-  const { canManagePR } = useApPermissions();
+  const { canCreatePR } = useApPermissions();
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
@@ -114,7 +115,7 @@ export default function PrRequestTab() {
           </div>
         </div>
 
-        {canManagePR && (
+        {canCreatePR && (
           <Button variant="primary" onClick={() => setIsCreateOpen(true)} className="whitespace-nowrap">
             <Plus size={16} />
             New Requisition
@@ -129,9 +130,18 @@ export default function PrRequestTab() {
       ) : isLoading ? (
         <LoadingSpinner text="Loading purchase requisitions..." />
       ) : purchaseRequisitions.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-          No purchase requisitions found.
-        </div>
+        <EmptyState
+          title="No purchase requisitions found"
+          description={canCreatePR ? "Raise a new requisition to get started." : "No requisitions match the current filters."}
+          action={
+            canCreatePR ? (
+              <Button variant="primary" onClick={() => setIsCreateOpen(true)}>
+                <Plus size={16} />
+                New Requisition
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <div className="space-y-3">
           <div className="w-full overflow-x-auto rounded-lg">

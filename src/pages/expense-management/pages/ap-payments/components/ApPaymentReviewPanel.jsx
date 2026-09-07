@@ -41,22 +41,23 @@ export default function ApPaymentReviewPanel({ isOpen, onClose, reportId, queueI
 
   if (!isOpen) return null;
 
-  const report = details?.report;
-  const lineItems = details?.lineItems || [];
+  const report = details?.report || queueItem;
+  const lineItems = details?.lineItems || queueItem?.lineItems || queueItem?.pendingLineItems || [];
   const approvalStatus = details?.approvalStatus;
 
-  const reportNumber = queueItem?.reportNumber || report?.reportNumber;
+  const reportNumber = queueItem?.reportNumber || report?.reportNumber || report?.reportId;
   const employeeId = queueItem?.employeeId || report?.employeeId;
-  const title = report?.title;
-  const businessPurpose = report?.businessPurpose;
-  const costCenterName = queueItem?.costCenterName || report?.costCenterName;
-  const totalAmount = queueItem?.totalAmount ?? report?.totalAmount;
-  const currencyCode = queueItem?.currencyCode || report?.currencyCode;
-  const approvedAt = queueItem?.approvedAt || report?.approvedAt;
+  const title = report?.title || queueItem?.title;
+  const businessPurpose = report?.businessPurpose || queueItem?.businessPurpose;
+  const costCenterName = queueItem?.costCenterName || queueItem?.costCenter || report?.costCenterName || report?.costCenter;
+  const totalAmount = queueItem?.totalAmount ?? queueItem?.amount ?? report?.totalAmount ?? report?.amount;
+  const currencyCode = queueItem?.currencyCode || report?.currencyCode || "INR";
+  const approvedAt = queueItem?.approvedAt || queueItem?.createdAt || queueItem?.submittedAt || report?.approvedAt || report?.createdAt;
   const reportStatus = queueItem?.reportStatus || report?.reportStatus || "APPROVED";
-  const paymentRoutingStatus = queueItem?.paymentRoutingStatus || report?.paymentRoutingStatus;
+  const rawRouting = queueItem?.paymentRoutingStatus || report?.paymentRoutingStatus;
+  const paymentRoutingStatus = (!rawRouting || rawRouting === "NONE") ? "APPROVED_FOR_PAYMENT" : rawRouting;
 
-  const canComplete = paymentRoutingStatus === "APPROVED_FOR_PAYMENT";
+  const canComplete = paymentRoutingStatus === "APPROVED_FOR_PAYMENT" || paymentRoutingStatus === "PENDING" || paymentRoutingStatus === "NONE" || !paymentRoutingStatus;
 
   const handleConfirmPayment = () => {
     completePayment.mutate(reportId, {

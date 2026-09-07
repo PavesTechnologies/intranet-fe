@@ -19,10 +19,10 @@ function toNumber(value) {
 /**
  * Maps a backend InvoiceDetailsResponse record (snake_case) to the frontend's camelCase Invoice
  * model. Used for both the list and detail endpoints — they return the same shape (see
- * invoiceService.js). Fields the backend doesn't provide yet (vendor GSTIN/email, PO/GRN
- * linkage, line items, attachments, issues, approval, payments, history, currency, amount paid)
- * get safe empty/null defaults — never invented values — so existing detail-page sections render
- * without crashing but never show fabricated data.
+ * invoiceService.js). Fields the backend doesn't provide yet (vendor GSTIN/email, line items,
+ * attachments, issues, approval, payments, history, currency, amount paid) get safe empty/null
+ * defaults — never invented values — so existing detail-page sections render without crashing but
+ * never show fabricated data.
  * @param {Object} raw - InvoiceDetailsResponse
  * @returns {Object} mapped Invoice
  */
@@ -49,8 +49,6 @@ export function mapInvoiceRecord(raw = {}) {
     // InvoiceDetailsResponse yet. Do not replace these with invented values.
     amountPaid: 0,
     vendor: vendorName ? { name: vendorName, gstin: null, email: null } : null,
-    purchaseOrder: null,
-    goodsReceipt: null,
     paymentTerms: null,
     invoiceLines: [],
     attachments: [],

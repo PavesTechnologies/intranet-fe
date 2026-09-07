@@ -17,6 +17,7 @@ export const PO_STATUSES_KEY = ["accountsPayable", "lookups", "poStatuses"];
 export const PAYMENT_STATUSES_KEY = ["accountsPayable", "lookups", "paymentStatuses"];
 export const PR_STATUSES_KEY = ["accountsPayable", "lookups", "prStatuses"];
 export const QUOTATION_STATUSES_KEY = ["accountsPayable", "lookups", "quotationStatuses"];
+export const RFQ_STATUSES_KEY = ["accountsPayable", "lookups", "rfqStatuses"];
 
 export const useCountries = () =>
   useQuery({
@@ -74,6 +75,14 @@ export const useQuotationStatuses = () =>
   useQuery({
     queryKey: QUOTATION_STATUSES_KEY,
     queryFn: apLookupService.getQuotationStatuses,
+    ...MASTER_DATA_OPTIONS,
+  });
+
+/** RFQ lifecycle statuses — DRAFT / SENT / RESPONSE_RECEIVED / CLOSED (module_name "RFQ"). */
+export const useRfqStatuses = () =>
+  useQuery({
+    queryKey: RFQ_STATUSES_KEY,
+    queryFn: apLookupService.getRfqStatuses,
     ...MASTER_DATA_OPTIONS,
   });
 

@@ -70,19 +70,6 @@ import { ISSUE_SEVERITY, ISSUE_SOURCE, ISSUE_STATUS } from "../constants/invoice
  */
 
 /**
- * @typedef {Object} PurchaseOrderSummary
- * @property {string} id
- * @property {string} poNumber
- * @property {number} poAmount
- */
-
-/**
- * @typedef {Object} GoodsReceiptSummary
- * @property {string} id
- * @property {string} grnNumber
- */
-
-/**
  * @typedef {Object} InvoiceApprovalInfo
  * @property {boolean} required - false when this workflow has no approval gate for the invoice
  * @property {string} approvedBy - empty when not yet approved
@@ -116,8 +103,6 @@ import { ISSUE_SEVERITY, ISSUE_SOURCE, ISSUE_STATUS } from "../constants/invoice
  * @property {string} dueDate - ISO date string
  * @property {InvoiceVendorSummary} vendor
  * @property {InvoiceCurrency} currency
- * @property {PurchaseOrderSummary|null} purchaseOrder - null for NON_PO invoices
- * @property {GoodsReceiptSummary|null} goodsReceipt - null for NON_PO invoices
  * @property {string} paymentTerms
  * @property {number} grossAmount
  * @property {number} discountAmount
@@ -147,8 +132,6 @@ export function createEmptyInvoice() {
     dueDate: "",
     vendor: null,
     currency: { code: "INR", symbol: "₹" },
-    purchaseOrder: null,
-    goodsReceipt: null,
     paymentTerms: "",
     grossAmount: 0,
     discountAmount: 0,

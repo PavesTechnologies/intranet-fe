@@ -23,8 +23,7 @@ function matchesSearch(invoice, search) {
   if (!term) return true;
   return (
     invoice.invoiceNumber?.toLowerCase().includes(term) ||
-    invoice.vendor?.name?.toLowerCase().includes(term) ||
-    invoice.purchaseOrder?.poNumber?.toLowerCase().includes(term)
+    invoice.vendor?.name?.toLowerCase().includes(term)
   );
 }
 
@@ -221,6 +220,100 @@ export const invoiceService = {
       return response.data;
     } catch (error) {
       console.error("Error in invoiceService.createInvoice:", error);
+      throw withNormalizedStatus(error);
+    }
+  },
+
+  /**
+   * Fetches the Redis-backed extraction cache entry (extracted_invoice + correction trail +
+   * per-section confirmed flags) for a given extraction_id. Not called on every render — only
+   * when the UI needs the full corrected record instead of relying on a correction response's
+   * `updated` sub-object.
+   * @param {string} extractionId
+   * @returns {Promise<Object>} ExtractionCacheResponse
+   */
+  async getExtractionCache(extractionId) {
+    try {
+      const response = await api.get(`${AP_BASE_URL}/invoice-extract/extract-fields/${encodeURIComponent(extractionId)}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error in invoiceService.getExtractionCache:", error);
+      throw withNormalizedStatus(error);
+    }
+  },
+
+  /**
+   * Stage 1 corrections: each PATCH is a sparse update (only fields present in `patch` are
+   * touched) against the Redis extraction cache — never the Invoice DB. None of these trigger
+   * revalidation on their own; call validateInvoiceFields again with { extraction_id } afterwards
+   * to get a fresh validation job against the corrected data.
+   * @param {string} extractionId
+   * @param {Object} patch - subset of {name, legal_name, trade_name, gstin, pan, address, state, state_code}
+   * @returns {Promise<Object>} CorrectionResponse { extraction_id, section, updated, corrections }
+   */
+  async correctVendorFields(extractionId, patch) {
+    try {
+      const response = await api.patch(`${AP_BASE_URL}/invoice-extract/extract-fields/${encodeURIComponent(extractionId)}/vendor`, patch);
+      return response.data;
+    } catch (error) {
+      console.error("Error in invoiceService.correctVendorFields:", error);
+      throw withNormalizedStatus(error);
+    }
+  },
+
+  /** @see correctVendorFields - identical shape, buyer section. */
+  async correctBuyerFields(extractionId, patch) {
+    try {
+      const response = await api.patch(`${AP_BASE_URL}/invoice-extract/extract-fields/${encodeURIComponent(extractionId)}/buyer`, patch);
+      return response.data;
+    } catch (error) {
+      console.error("Error in invoiceService.correctBuyerFields:", error);
+      throw withNormalizedStatus(error);
+    }
+  },
+
+  /**
+   * @param {string} extractionId
+   * @param {Object} patch - subset of {place_of_supply, reverse_charge, tax_type, hsn_sac,
+   *   cgst_rate, sgst_rate, igst_rate, ugst_rate, cess_rate}
+   */
+  async correctTaxFields(extractionId, patch) {
+    try {
+      const response = await api.patch(`${AP_BASE_URL}/invoice-extract/extract-fields/${encodeURIComponent(extractionId)}/tax`, patch);
+      return response.data;
+    } catch (error) {
+      console.error("Error in invoiceService.correctTaxFields:", error);
+      throw withNormalizedStatus(error);
+    }
+  },
+
+  /**
+   * @param {string} extractionId
+   * @param {Object} patch - subset of {subtotal, taxable_amount, discount, cgst_amount,
+   *   sgst_amount, igst_amount, ugst_amount, cess_amount, total_tax, grand_total}
+   */
+  async correctAmountsFields(extractionId, patch) {
+    try {
+      const response = await api.patch(`${AP_BASE_URL}/invoice-extract/extract-fields/${encodeURIComponent(extractionId)}/amounts`, patch);
+      return response.data;
+    } catch (error) {
+      console.error("Error in invoiceService.correctAmountsFields:", error);
+      throw withNormalizedStatus(error);
+    }
+  },
+
+  /**
+   * Marks a section ("vendor" | "buyer" | "tax" | "amounts") as reviewed/accepted as-is.
+   * @param {string} extractionId
+   * @param {"vendor"|"buyer"|"tax"|"amounts"} section
+   * @returns {Promise<Object>} ExtractionCacheResponse
+   */
+  async confirmExtractionSection(extractionId, section) {
+    try {
+      const response = await api.post(`${AP_BASE_URL}/invoice-extract/extract-fields/${encodeURIComponent(extractionId)}/confirm`, { section });
+      return response.data;
+    } catch (error) {
+      console.error("Error in invoiceService.confirmExtractionSection:", error);
       throw withNormalizedStatus(error);
     }
   },

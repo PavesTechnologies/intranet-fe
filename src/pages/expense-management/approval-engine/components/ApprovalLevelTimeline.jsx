@@ -73,8 +73,17 @@ export default function ApprovalLevelTimeline({ reportId, reportStatus }) {
   const levelNodes = Array.from({ length: totalLevels }, (_, i) => i + 1).map((levelOrder) => {
     const levelReviews = (reviewsByLevel.get(levelOrder) || []).slice().sort((a, b) => new Date(b.actionedAt || 0) - new Date(a.actionedAt || 0));
     const latest = levelReviews[0];
-    const displayName =
+    let displayName =
       latest?.displayName || latest?.levelName || (levelOrder === currentLevelOrder ? status?.currentLevelDisplayName : null) || `Level ${levelOrder}`;
+
+    if (displayName) {
+      const clean = displayName.trim().toLowerCase();
+      if (clean === "level 2") {
+        displayName = "Finance";
+      } else if (clean === "manager review") {
+        displayName = "Manager";
+      }
+    }
 
     let state = "upcoming";
     if (isApproved) state = "done";

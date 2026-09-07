@@ -6,6 +6,7 @@ import { PageCard, PageCardContent } from "../../../components/Cards/PageCard";
 import { KPICard } from "../../../components/kpi/KPI";
 import Button from "../../../components/Button/Button";
 import Modal from "../../../components/Modal/modal";
+import ConfirmationModal from "../../../components/confirmation_modal/ConfirmationModal";
 import FormTextArea from "../../../components/forms/FormTextArea";
 import SearchInput from "../../../components/filter/Searchbar";
 import Pagination from "../../../components/Pagination/pagination";
@@ -23,6 +24,7 @@ import {
 import { fetchBillingConfigurations } from "../services/billingConfigService";
 import { formatFrequencyLabel } from "../components/billing-setup/ReviewActivateStep";
 import { BILLING_MODE_LABELS } from "../data/wizardOptions";
+import { getBillingTypeDisplayName } from "../utils/billingType";
 
 const PAGE_SIZE = 8;
 
@@ -139,8 +141,6 @@ export default function BillingApprovals() {
   const [reviewingId, setReviewingId] = useState(null);
   const [reviewTarget, setReviewTarget] = useState(null);
 
-  const [approveTarget, setApproveTarget] = useState(null);
-  const [approvalComment, setApprovalComment] = useState("");
   const [approveLoading, setApproveLoading] = useState(false);
 
   const [rejectTarget, setRejectTarget] = useState(null);
@@ -261,11 +261,8 @@ export default function BillingApprovals() {
     }
   };
 
-  const closeReview = () => setReviewTarget(null);
-
-  const openApproveConfirmation = () => {
-    setApproveTarget(reviewTarget);
-    setApprovalComment("");
+  const closeReview = () => {
+    if (approveLoading) return;
     setReviewTarget(null);
   };
 
@@ -275,26 +272,21 @@ export default function BillingApprovals() {
     setReviewTarget(null);
   };
 
-  const closeApproveConfirmation = () => {
-    if (approveLoading) return;
-    setApproveTarget(null);
-    setApprovalComment("");
-  };
-
   const closeRejectModal = () => {
     if (rejectLoading) return;
     setRejectTarget(null);
     setRejectionReason("");
   };
 
-  const handleConfirmApprove = async () => {
-    if (!approveTarget) return;
+  // Approving is a single click from the review screen — no extra "are you
+  // sure" step, since the review screen itself is already the confirmation.
+  const handleApprove = async () => {
+    if (!reviewTarget) return;
     setApproveLoading(true);
     try {
-      await approveBillingConfigurationRequest(approveTarget.billingConfigurationId, approvalComment.trim() || undefined);
+      await approveBillingConfigurationRequest(reviewTarget.billingConfigurationId);
       showStatusToast("Billing Configuration approved successfully.", "success");
-      setApproveTarget(null);
-      setApprovalComment("");
+      setReviewTarget(null);
       await loadAllApprovals();
     } catch (error) {
       showStatusToast(getApiErrorMessage(error, "Failed to approve billing configuration."), "error");
@@ -334,7 +326,7 @@ export default function BillingApprovals() {
           </div>
         ),
         client: config.clientName || "—",
-        billingType: config.billingTypeName || "—",
+        billingType: getBillingTypeDisplayName(config.billingTypeName) || "—",
         billingFrequency: config.billingFrequencyName || "—",
         paymentTerms: config.paymentTermName || "—",
         taxRegion: config.taxRegionName || "—",
@@ -465,10 +457,16 @@ export default function BillingApprovals() {
             <div className="flex justify-end gap-2">
               {reviewTarget.approvalStatus === "PENDING_APPROVAL" ? (
                 <>
-                  <Button variant="danger" size="small" onClick={openRejectModal}>
+                  <Button variant="danger" size="small" onClick={openRejectModal} disabled={approveLoading}>
                     <XCircle className="h-4 w-4" /> Reject Configuration
                   </Button>
-                  <Button variant="success" size="small" onClick={openApproveConfirmation}>
+                  <Button
+                    variant="success"
+                    size="small"
+                    onClick={handleApprove}
+                    loading={approveLoading}
+                    loadingText="Approving..."
+                  >
                     <CheckCircle2 className="h-4 w-4" /> Approve Configuration
                   </Button>
                 </>
@@ -490,30 +488,19 @@ export default function BillingApprovals() {
 
           const currency = reviewTarget.currencyCode || reviewTarget.currency || "";
 
-          // Strictly resolve entered Contract Value vs PMS Project Budget
-          const contractVal = Number(
-            reviewTarget.contractValue ||
-              reviewTarget.totalContractValue ||
-              reviewTarget.fixedPrice?.totalContractValue ||
-              reviewTarget.recurring?.contractValue
-          ) || 0;
-
-          const pmsBudgetVal = Number(
-            reviewTarget.pmsProjectBudget ||
-              reviewTarget.projectBudget ||
-              reviewTarget.fixedPrice?.pmsProjectBudget ||
-              reviewTarget.recurring?.pmsProjectBudget
-          ) || 0;
+          // reviewTarget.contractValue/pmsProjectBudget/contractValueSource and every
+          // commercial figure below already come straight from the billing-type-specific
+          // details section (fixedPriceDetails/recurringDetails) via
+          // normalizeApprovalConfiguration — read them as-is, never recomputed here.
+          const contractVal = Number(reviewTarget.contractValue) || 0;
+          const pmsBudgetVal = Number(reviewTarget.pmsProjectBudget) || 0;
 
           const hasContractVal = contractVal > 0;
           const hasPmsBudget = pmsBudgetVal > 0;
           const isSameAmount = hasPmsBudget && hasContractVal && contractVal === pmsBudgetVal;
           const isDifferentAmount = hasPmsBudget && hasContractVal && contractVal !== pmsBudgetVal;
 
-          const sourceRaw =
-            reviewTarget.contractValueSource ||
-            reviewTarget.fixedPrice?.contractValueSource ||
-            reviewTarget.recurring?.contractValueSource;
+          const sourceRaw = reviewTarget.contractValueSource;
 
           const sourceLabel =
             sourceRaw === "PMS" || sourceRaw === "PMS_BUDGET"
@@ -527,28 +514,15 @@ export default function BillingApprovals() {
               : "Manual Input";
 
           const retentionPercent = Number(reviewTarget.retentionPercent) || 0;
-          const retentionAmountInput = Number(reviewTarget.retentionAmount) || 0;
-          const retentionAmount =
-            retentionAmountInput > 0
-              ? retentionAmountInput
-              : retentionPercent > 0 && contractVal > 0
-              ? (contractVal * retentionPercent) / 100
-              : 0;
-
+          const retentionAmount = Number(reviewTarget.retentionAmount) || 0;
           const hasRetention = retentionAmount > 0 || retentionPercent > 0;
 
-          const billableAmount =
-            reviewTarget.billableAmount !== "" && reviewTarget.billableAmount !== null && reviewTarget.billableAmount !== undefined && Number(reviewTarget.billableAmount) > 0
-              ? Number(reviewTarget.billableAmount)
-              : contractVal - retentionAmount;
+          const billableAmount = Number(reviewTarget.billableAmount) || 0;
 
           const advanceReceived = Number(reviewTarget.advanceReceived) || 0;
           const hasAdvance = advanceReceived > 0;
 
-          const remainingAmount =
-            reviewTarget.remainingAmount !== "" && reviewTarget.remainingAmount !== null && reviewTarget.remainingAmount !== undefined && Number(reviewTarget.remainingAmount) > 0
-              ? Number(reviewTarget.remainingAmount)
-              : billableAmount - advanceReceived;
+          const remainingAmount = Number(reviewTarget.remainingAmount) || 0;
 
           const billingFreqLabel = formatFrequencyLabel(
             reviewTarget.billingFrequency,
@@ -565,7 +539,10 @@ export default function BillingApprovals() {
               <ReviewSection
                 title="Commercial Configuration"
                 rows={[
-                  { label: "Billing Type", value: reviewTarget.billingTypeName || reviewTarget.billingType },
+                  {
+                    label: "Billing Type",
+                    value: getBillingTypeDisplayName(reviewTarget.billingTypeName || reviewTarget.billingType),
+                  },
                   { label: "Billing Frequency", value: billingFreqLabel },
                   { label: "Currency", value: currency },
                   { label: "PMS Project Budget", value: formatMoney(pmsBudgetVal, currency) },
@@ -785,89 +762,31 @@ export default function BillingApprovals() {
         })()}
       </Modal>
 
-      {/* 5. Approve Modal with Comments */}
-      <Modal
-        isOpen={Boolean(approveTarget)}
-        onClose={closeApproveConfirmation}
-        title="Approve Billing Configuration"
-        subtitle={approveTarget ? `${approveTarget.projectName || "—"} (${approveTarget.clientName || "—"})` : ""}
-        size="md"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-slate-600">
-            Are you sure you want to approve the billing configuration for{" "}
-            <span className="font-semibold text-slate-900">{approveTarget?.projectName}</span>?
-          </p>
-
-          <FormTextArea
-            label="Approval Notes / Comments (Optional)"
-            name="approvalComment"
-            value={approvalComment}
-            onChange={(e) => setApprovalComment(e.target.value)}
-            placeholder="Add any instructions or remarks for the Finance team..."
-            rows={3}
-            disabled={approveLoading}
-          />
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="small" onClick={closeApproveConfirmation} disabled={approveLoading}>
-              Cancel
-            </Button>
-            <Button
-              variant="success"
-              size="small"
-              onClick={handleConfirmApprove}
-              loading={approveLoading}
-              loadingText="Approving..."
-            >
-              <CheckCircle2 className="h-4 w-4" /> Confirm Approval
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* 6. Reject Modal with Reason */}
-      <Modal
+      {/* 5. Reject Confirmation — shared ConfirmationModal, reason kept as a required field */}
+      <ConfirmationModal
         isOpen={Boolean(rejectTarget)}
-        onClose={closeRejectModal}
         title="Reject Billing Configuration"
-        subtitle={rejectTarget ? `${rejectTarget.projectName || "—"} (${rejectTarget.clientName || "—"})` : ""}
-        size="md"
+        message={`Please provide a reason for rejecting the billing setup for ${
+          rejectTarget?.projectName || "this project"
+        } (${rejectTarget?.clientName || "—"}).`}
+        confirmText="Reject Configuration"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={rejectLoading}
+        onConfirm={handleConfirmReject}
+        onCancel={closeRejectModal}
       >
-        <div className="space-y-4">
-          <p className="text-sm text-slate-600">
-            Please provide a reason for rejecting the billing setup for{" "}
-            <span className="font-semibold text-slate-900">{rejectTarget?.projectName}</span>.
-          </p>
-
-          <FormTextArea
-            label="Rejection Reason *"
-            name="rejectionReason"
-            value={rejectionReason}
-            onChange={(event) => setRejectionReason(event.target.value)}
-            placeholder="Specify why this configuration is being rejected..."
-            rows={4}
-            required
-            disabled={rejectLoading}
-          />
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="small" onClick={closeRejectModal} disabled={rejectLoading}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              size="small"
-              onClick={handleConfirmReject}
-              loading={rejectLoading}
-              loadingText="Rejecting..."
-              disabled={!rejectionReason.trim()}
-            >
-              <XCircle className="h-4 w-4" /> Reject Configuration
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        <FormTextArea
+          label="Rejection Reason *"
+          name="rejectionReason"
+          value={rejectionReason}
+          onChange={(event) => setRejectionReason(event.target.value)}
+          placeholder="Specify why this configuration is being rejected..."
+          rows={4}
+          required
+          disabled={rejectLoading}
+        />
+      </ConfirmationModal>
     </div>
   );
 }

@@ -7,7 +7,7 @@ export const MY_HISTORY_KEY = (outcome, page, size) => ["approvalMyHistory", out
 export const APPROVAL_STATUS_KEY = (reportId) => ["approvalStatus", reportId];
 export const LINE_ITEM_REVIEWS_KEY = (reportId) => ["approvalLineItemReviews", reportId];
 
-const unwrap = (res) => res.data?.data;
+const unwrap = (res) => (res?.data?.data !== undefined ? res.data.data : res?.data);
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 

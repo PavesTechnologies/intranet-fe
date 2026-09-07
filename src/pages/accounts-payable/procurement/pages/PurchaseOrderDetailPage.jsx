@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { toast } from "react-toastify";
+import { ArrowLeft, Eye, Download } from "lucide-react";
 import PageHeader from "../../../../components/ui/PageHeader";
 import Breadcrumb from "../../../../components/Breadcrumb/Breadcrumb";
 import Button from "../../../../components/Button/Button";
@@ -12,7 +14,24 @@ import { formatCurrency, formatDate } from "../../utils/formatters";
 import { AP_ROUTES } from "../../constants/routes";
 import { usePoStatuses } from "../../hooks/useApLookups";
 import { usePurchaseOrderDetail } from "../../purchase-order/hooks/usePurchaseOrders";
+import usePurchaseRequisitionDetail from "../hooks/usePurchaseRequisitionDetail";
+import { useQuotationDetail } from "../hooks/useQuotations";
 import useVendorOptions from "../hooks/useVendorOptions";
+import procurementService from "../services/procurementService";
+
+function openBlob(blob, contentType, mode) {
+  const file = new Blob([blob], { type: contentType });
+  const url = URL.createObjectURL(file);
+  if (mode === "download") {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "quotation";
+    link.click();
+  } else {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
 
 function Field({ label, value }) {
   return (
@@ -30,6 +49,9 @@ export default function PurchaseOrderDetailPage() {
   const { purchaseOrder: po, isLoading, isError, error } = usePurchaseOrderDetail(poId);
   const { data: poStatuses = [] } = usePoStatuses();
   const { vendorNameById } = useVendorOptions();
+  const { data: pr } = usePurchaseRequisitionDetail(po?.pr_id);
+  const { data: selectedQuotation } = useQuotationDetail(pr?.selected_quotation_id);
+  const [docLoading, setDocLoading] = useState(false);
 
   if (isLoading) {
     return (
@@ -58,6 +80,32 @@ export default function PurchaseOrderDetailPage() {
 
   const statusName = poStatuses.find((s) => s.status_id === po.status_id)?.status_name || "Unknown";
   const lines = po.purchase_order_line || [];
+
+  const handleViewQuotation = async () => {
+    if (!selectedQuotation) return;
+    setDocLoading(true);
+    try {
+      const { blob, contentType } = await procurementService.viewQuotationDocument(selectedQuotation.id);
+      openBlob(blob, contentType, "view");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Could not load the quotation document."));
+    } finally {
+      setDocLoading(false);
+    }
+  };
+
+  const handleDownloadQuotation = async () => {
+    if (!selectedQuotation) return;
+    setDocLoading(true);
+    try {
+      const { blob, contentType } = await procurementService.downloadQuotationDocument(selectedQuotation.id);
+      openBlob(blob, contentType, "download");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Could not download the quotation document."));
+    } finally {
+      setDocLoading(false);
+    }
+  };
 
   const headers = ["Item", "Description", "UOM", "Qty", "Unit Price", "Tax", "Total"];
   const columns = ["item", "description", "uom", "qty", "unitPrice", "tax", "total"];
@@ -99,7 +147,7 @@ export default function PurchaseOrderDetailPage() {
                   className="text-[#0A0082] hover:underline"
                   onClick={() => navigate(AP_ROUTES.PROCUREMENT_PR_DETAIL(po.pr_id))}
                 >
-                  PR #{po.pr_id}
+                  {pr?.pr_number || "View requisition"}
                 </button>
               }
             />
@@ -116,6 +164,33 @@ export default function PurchaseOrderDetailPage() {
           </div>
         </PageCardContent>
       </PageCard>
+
+      {selectedQuotation && (
+        <PageCard className="mb-4">
+          <PageCardContent>
+            <h3 className="mb-3 text-sm font-semibold text-gray-700">Selected Quotation</h3>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <Field label="Vendor" value={vendorNameById.get(selectedQuotation.vendor_id) || `#${selectedQuotation.vendor_id}`} />
+                <Field label="Quotation No." value={selectedQuotation.quotation_number} />
+                <Field
+                  label="Quotation Amount"
+                  value={selectedQuotation.total_amount != null ? formatCurrency(Number(selectedQuotation.total_amount)) : "—"}
+                />
+                <Field label="Valid Until" value={formatDate(selectedQuotation.valid_until)} />
+              </div>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="small" onClick={handleViewQuotation} loading={docLoading}>
+                  <Eye size={14} /> View
+                </Button>
+                <Button variant="outline" size="small" onClick={handleDownloadQuotation} loading={docLoading}>
+                  <Download size={14} /> Download
+                </Button>
+              </div>
+            </div>
+          </PageCardContent>
+        </PageCard>
+      )}
 
       <PageCard>
         <PageCardContent>

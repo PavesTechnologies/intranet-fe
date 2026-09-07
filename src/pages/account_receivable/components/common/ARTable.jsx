@@ -8,8 +8,44 @@ import { Inbox } from "lucide-react";
  * replacement inside the AR module only — GenericTable itself is
  * shared by dozens of other modules and isn't touched.
  */
-const ARTable = ({ headers = [], rows = [], columns = [], loading = false, emptyMessage = "No records found." }) => {
+const ARTable = ({
+  headers = [],
+  rows = [],
+  columns = [],
+  alignments = {},
+  loading = false,
+  emptyMessage = "No records found.",
+}) => {
   const hasData = rows.length > 0;
+
+  const getAlignmentClass = (colOrHeader, idx) => {
+    if (alignments) {
+      if (alignments[colOrHeader] === "left") return "text-left";
+      if (alignments[colOrHeader] === "center") return "text-center";
+      if (alignments[colOrHeader] === "right") return "text-right";
+
+      const colKey = columns[idx];
+      if (colKey && alignments[colKey] === "left") return "text-left";
+      if (colKey && alignments[colKey] === "center") return "text-center";
+      if (colKey && alignments[colKey] === "right") return "text-right";
+
+      const headerKey = headers[idx];
+      if (headerKey && alignments[headerKey] === "left") return "text-left";
+      if (headerKey && alignments[headerKey] === "center") return "text-center";
+      if (headerKey && alignments[headerKey] === "right") return "text-right";
+
+      if (alignments[idx] === "left") return "text-left";
+      if (alignments[idx] === "center") return "text-center";
+      if (alignments[idx] === "right") return "text-right";
+    }
+
+    const name = String(columns[idx] || headers[idx] || colOrHeader || "").toLowerCase();
+    if (name === "client" || name === "project") {
+      return "text-left";
+    }
+
+    return idx === 0 ? "text-left" : "text-center";
+  };
 
   return (
     <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -30,7 +66,7 @@ const ARTable = ({ headers = [], rows = [], columns = [], loading = false, empty
                 {headers.map((header, idx) => (
                   <th
                     key={idx}
-                    className={`px-4 py-3 font-semibold text-slate-600 ${idx === 0 ? "text-left" : "text-center"}`}
+                    className={`px-4 py-3 font-semibold text-slate-600 ${getAlignmentClass(header, idx)}`}
                   >
                     {header}
                   </th>
@@ -47,7 +83,7 @@ const ARTable = ({ headers = [], rows = [], columns = [], loading = false, empty
                   {columns.map((col, colIndex) => (
                     <td
                       key={colIndex}
-                      className={`px-4 py-3 align-middle text-slate-700 ${colIndex === 0 ? "text-left" : "text-center"}`}
+                      className={`px-4 py-3 align-middle text-slate-700 ${getAlignmentClass(col, colIndex)}`}
                     >
                       {row[col]}
                     </td>

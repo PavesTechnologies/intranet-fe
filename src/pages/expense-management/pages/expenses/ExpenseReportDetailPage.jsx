@@ -53,12 +53,12 @@ import FormTextArea from "@/components/forms/FormTextArea";
 import FormDatePicker from "@/components/forms/FormDatePicker";
 import GstCalculationCard from "@/pages/expense-management/components/expense-reports/GstCalculationCard";
 import CurrencyConversionCard from "@/pages/expense-management/components/expense-reports/CurrencyConversionCard";
+import ReceiptDropzone from "@/pages/expense-management/components/expense-reports/ReceiptDropzone";
 import PolicyStatusBadge, {
+  PolicyResultBanner,
   derivePolicyStatus,
 } from "@/pages/expense-management/components/expense-reports/PolicyStatusBadge";
 import ApprovalStatusPill from "@/pages/expense-management/approval-engine/components/ApprovalStatusPill";
-import ApprovalLevelTimeline from "@/pages/expense-management/approval-engine/components/ApprovalLevelTimeline";
-import FinanceQueryPanel from "@/pages/expense-management/components/expense-reports/FinanceQueryPanel";
 import { useApprovalLiveSync } from "@/pages/expense-management/approval-engine/hooks/useApprovalLiveSync";
 import {
   useApprovalStatus,
@@ -67,6 +67,7 @@ import {
   useRecallReport,
   useCancelReport,
 } from "@/pages/expense-management/approval-engine/hooks/useApprovalWorkflow";
+import { useFinanceReviews } from "@/pages/expense-management/pages/finance/hooks/useFinanceVerification";
 
 const formatDate = (value) => {
   if (!value) return "—";
@@ -105,6 +106,7 @@ export default function ExpenseReportDetailPage() {
   useApprovalLiveSync();
   const { data: approvalStatus } = useApprovalStatus(reportId);
   const { data: lineItemReviews } = useLineItemReviews(reportId);
+  const { data: financeReviews } = useFinanceReviews(reportId);
   const submitReport = useSubmitReport();
   const recallReport = useRecallReport();
   const cancelReport = useCancelReport();
@@ -114,6 +116,7 @@ export default function ExpenseReportDetailPage() {
   const [lineItems, setLineItems] = useState([]);
 
   const needsCorrectionLines = (lineItemReviews || []).filter((r) => r.status === "NEEDS_CORRECTION");
+  const queriedLines = (financeReviews || []).filter((r) => r.status === "QUERIED" || r.status === "QUERY_RAISED" || r.reason);
   // Mirrors the backend's ReportStatus.isEditable() set exactly (EMS/enums/ReportStatus.java) -
   // report-level Edit/Delete must stay available during AWAITING_CORRECTION (that's the whole
   // point of the correction loop), not just DRAFT.
@@ -359,7 +362,13 @@ export default function ExpenseReportDetailPage() {
       formData.append("file", file, safeName);
 
       // Upload file to the report's receipt store
-      const uploadRes = await receiptService.uploadForOcr(reportId, formData);
+      const uploadRes = await api.post(`/xms/employee/expense-reports/${reportId}/receipts`, formData, {
+        baseURL: window.__APP_CONFIG__?.EXPENSE_MANAGEMENT_URL || "",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
       const receiptId = uploadRes.data?.data?.receiptId || uploadRes.data?.receiptId;
       if (!receiptId) {
@@ -374,7 +383,12 @@ export default function ExpenseReportDetailPage() {
       const interval = setInterval(async () => {
         try {
           pollCount++;
-          const ocrRes = await receiptService.getOcrResult(receiptId);
+          const ocrRes = await api.get(`/xms/employee/receipts/${receiptId}/ocr`, {
+            baseURL: window.__APP_CONFIG__?.EXPENSE_MANAGEMENT_URL || "",
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          });
 
           // Checking if response data holds OCR result or status
           const responsePayload = ocrRes.data?.data || ocrRes.data;
@@ -684,7 +698,7 @@ export default function ExpenseReportDetailPage() {
   const handleSubmitOrResubmit = () => {
     submitReport.mutate(reportId, {
       onSuccess: () => {
-        showStatusToast(report.reportStatus === "AWAITING_CORRECTION" ? "Report resubmitted" : "Report submitted for approval", "success");
+        showStatusToast(["AWAITING_CORRECTION", "QUERY_RAISED"].includes(report.reportStatus) ? "Report resubmitted" : "Report submitted for approval", "success");
         fetchReport();
       },
       onError: (err) => showStatusToast(err.response?.data?.message || "Failed to submit report", "error"),
@@ -855,7 +869,15 @@ export default function ExpenseReportDetailPage() {
 
     try {
       setOcrSubmitting(true);
-      await receiptService.confirmOcr(ocrReviewData.ocrReceiptId, { ...payload, lineItemId: null });
+      await api.post(`/xms/employee/receipts/${ocrReviewData.ocrReceiptId}/confirm`, {
+        ...payload,
+        lineItemId: null
+      }, {
+        baseURL: window.__APP_CONFIG__?.EXPENSE_MANAGEMENT_URL || "",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        }
+      });
 
       showStatusToast("Line item created and receipt confirmed successfully!", "success");
       fetchLineItems();
@@ -927,11 +949,24 @@ export default function ExpenseReportDetailPage() {
               {canManage && (
                 <div className="flex gap-2 shrink-0 flex-wrap">
                   {report.reportStatus === "DRAFT" && (
-                    <Button variant="primary" size="small" loading={submitReport.isPending} loadingText="Submitting..." onClick={handleSubmitOrResubmit}>
+                    <Button
+                      variant="primary"
+                      size="small"
+                      loading={submitReport.isPending}
+                      loadingText="Submitting..."
+                      onClick={handleSubmitOrResubmit}
+                      disabled={report.reportStatus !== "DRAFT" || lineItems.length === 0 || isLifecycleBusy}
+                      className={lineItems.length === 0 ? "!pointer-events-auto cursor-not-allowed" : ""}
+                    >
                       Submit for Approval
                     </Button>
                   )}
                   {report.reportStatus === "AWAITING_CORRECTION" && (
+                    <Button variant="primary" size="small" loading={submitReport.isPending} loadingText="Resubmitting..." onClick={handleSubmitOrResubmit}>
+                      Resubmit
+                    </Button>
+                  )}
+                  {report.reportStatus === "QUERY_RAISED" && (
                     <Button variant="primary" size="small" loading={submitReport.isPending} loadingText="Resubmitting..." onClick={handleSubmitOrResubmit}>
                       Resubmit
                     </Button>
@@ -979,7 +1014,22 @@ export default function ExpenseReportDetailPage() {
               </div>
             )}
 
-            <FinanceQueryPanel reportId={reportId} lineItems={lineItems} />
+            {report.reportStatus === "QUERY_RAISED" && queriedLines.length > 0 && (
+              <div className="mt-4 rounded-lg bg-orange-50 border border-orange-200 px-4 py-3">
+                <p className="text-sm font-semibold text-orange-800">
+                  Finance Executive requested correction on {queriedLines.length} line item{queriedLines.length > 1 ? "s" : ""}
+                </p>
+                <ul className="mt-2 space-y-1.5">
+                  {queriedLines.map((r) => (
+                    <li key={r.lineItemId} className="text-sm text-orange-700">
+                      <span className="font-medium">{lineItems.find((li) => li.lineItemId === r.lineItemId)?.merchantName || "Line item"}:</span>{" "}
+                      {r.reason || r.comment || "Correction requested"}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-orange-600">Fix the flagged line(s) below, then click Resubmit above.</p>
+              </div>
+            )}
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <DetailField icon={<FileText size={16} />} label="Business Purpose" value={report.businessPurpose || "—"} />
@@ -1034,20 +1084,8 @@ export default function ExpenseReportDetailPage() {
         </div>
 
         {/* Right column */}
-        <div className="lg:col-span-1 space-y-4">
+        <div className="lg:col-span-1">
           <SummaryPanel report={{ ...report, status: report?.reportStatus }} lineItems={lineItems} />
-
-          {report.reportStatus !== "DRAFT" && (
-            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-              <div className="mb-3 flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-indigo-50 text-[#0A0082]">
-                  <Landmark size={16} />
-                </div>
-                <h2 className="text-base font-bold text-gray-900">Approval Progress</h2>
-              </div>
-              <ApprovalLevelTimeline reportId={reportId} reportStatus={report.reportStatus} />
-            </div>
-          )}
         </div>
       </div>
 
@@ -1376,22 +1414,6 @@ export default function ExpenseReportDetailPage() {
         onCancel={() => setIsDeleteReportOpen(false)}
         isLoading={deletingReport}
         variant="danger"
-      />
-
-      <ConfirmationModal
-        isOpen={!!pendingLifecycleAction}
-        title={pendingLifecycleAction === "recall" ? "Recall to Draft" : "Cancel Expense Report"}
-        message={
-          pendingLifecycleAction === "recall"
-            ? "This will withdraw the report from approval and return it to Draft so you can edit it. You'll need to resubmit it afterwards."
-            : "This will permanently cancel this expense report. This action cannot be undone."
-        }
-        confirmText={pendingLifecycleAction === "recall" ? "Recall to Draft" : "Cancel Report"}
-        cancelText="Back"
-        onConfirm={handleLifecycleConfirm}
-        onCancel={() => setPendingLifecycleAction(null)}
-        isLoading={isLifecycleBusy}
-        variant={pendingLifecycleAction === "recall" ? "primary" : "danger"}
       />
 
       {isViewModalOpen && createPortal(
@@ -2435,7 +2457,15 @@ function LineItemDrawer({
         finalizeLineItemSave(updatedItem, "Line item updated successfully!");
       } else if (ocrReceiptId) {
         // OCR Confirm flow
-        res = await receiptService.confirmOcr(ocrReceiptId, { ...payload, lineItemId: null });
+        res = await api.post(`/xms/employee/receipts/${ocrReceiptId}/confirm`, {
+          ...payload,
+          lineItemId: null
+        }, {
+          baseURL: window.__APP_CONFIG__?.EXPENSE_MANAGEMENT_URL || "",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          }
+        });
         const createdItem = res.data?.data || res.data;
         finalizeLineItemSave(createdItem, "Line item created and receipt confirmed successfully!", { closeOnSuccess: true });
       } else {

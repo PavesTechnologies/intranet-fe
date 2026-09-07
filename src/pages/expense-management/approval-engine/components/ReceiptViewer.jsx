@@ -36,13 +36,19 @@ function ReceiptSurface({ receipt, url, zoom }) {
   if (isPdfFile(receipt.fileName)) {
     return <iframe title={receipt.fileName || "Receipt"} src={url} className="h-full w-full border-0 bg-white" />;
   }
+  const isFit = zoom <= 1;
   return (
     <div className="flex h-full w-full items-center justify-center overflow-auto p-4">
       <img
         src={url}
         alt={receipt.fileName || "Receipt"}
-        style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}
-        className="max-w-none transition-transform duration-150 shadow-sm"
+        style={{
+          transform: `scale(${zoom})`,
+          transformOrigin: "center center",
+          maxWidth: isFit ? "100%" : "none",
+          maxHeight: isFit ? "100%" : "none",
+        }}
+        className={`${isFit ? "object-contain" : "max-w-none"} transition-transform duration-150 shadow-sm`}
       />
     </div>
   );

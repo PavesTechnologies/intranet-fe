@@ -80,14 +80,16 @@ export default function ProjectStep({ value = {}, onChange }) {
       });
   }, [value.clientId]);
 
-  // Any project that already has a Billing Configuration for this client in
-  // Draft, Pending Approval, or Approved is not eligible for a new setup, so
-  // it's hidden from the picker. A Rejected configuration does NOT block a
-  // fresh setup — the Maker must be able to pick the same project again and
-  // resubmit — so it's excluded from this "already configured" set. (Note:
-  // getBillingConfigurations returns every configuration regardless of
-  // approvalStatus, so REJECTED ones reach the UI here and must be filtered
-  // out explicitly.)
+  // A project is only blocked from a new Billing Setup while a configuration
+  // for it is still in progress (Draft/Pending Approval) or is currently
+  // active (Approved + billingStatus ACTIVE — same definition used for the
+  // "Active" stat in billingConfigurationService.js). Rejected configs never
+  // block, and an Approved config that was later deactivated (billingStatus
+  // flips to INACTIVE, approvalStatus stays APPROVED — see
+  // deactivateBillingConfiguration) no longer blocks either, so the project
+  // becomes available again for a fresh setup. (Note: getBillingConfigurations
+  // returns every configuration regardless of status, so this filtering must
+  // happen here.)
   useEffect(() => {
     if (!value.clientId || !value.clientName) {
       setConfiguredProjectKeys(new Set());
@@ -102,10 +104,15 @@ export default function ProjectStep({ value = {}, onChange }) {
           (value.clientId && config.clientId && String(config.clientId) === String(value.clientId)) ||
           config.client === value.clientName;
 
+        const blocksNewSetup = (config) => {
+          if (config.approvalStatus === "DRAFT" || config.approvalStatus === "PENDING_APPROVAL") return true;
+          return config.approvalStatus === "APPROVED" && config.billingStatus === "ACTIVE";
+        };
+
         const keys = new Set(
           (Array.isArray(configs) ? configs : [])
             .filter(belongsToClient)
-            .filter((config) => config.approvalStatus !== "REJECTED")
+            .filter(blocksNewSetup)
             .flatMap((config) => [config.projectId, config.projectCode])
             .filter(Boolean)
             .map(String)

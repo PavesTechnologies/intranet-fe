@@ -26,6 +26,7 @@ export const useVendorOptions = () => {
 
   return {
     vendors,
+    activeVendors,
     vendorNameById,
     vendorOptions: activeVendors.map((v) => ({ value: v.vendor_id, label: v.vendor_name })),
     isLoading: vendorsQuery.isLoading,

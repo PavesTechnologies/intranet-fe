@@ -7,7 +7,6 @@ import LoadingSpinner from "../../../../components/LoadingSpinner";
 import Button from "../../../../components/Button/Button";
 import { PageCard, PageCardContent } from "../../../../components/Cards/PageCard";
 import InvoiceAmountSummary from "../components/InvoiceAmountSummary";
-import InvoiceMatchingCard from "../components/InvoiceMatchingCard";
 import InvoiceAttachmentList from "../components/InvoiceAttachmentList";
 import InvoiceIssueList from "../components/InvoiceIssueList";
 import InvoiceOcrReviewPanel from "../components/InvoiceOcrReviewPanel";
@@ -22,9 +21,9 @@ import { getApiErrorMessage } from "../../utils/apiError";
 /**
  * Single detail route for the whole invoice lifecycle. OCR/Validation render as fixed
  * informational cards (their real corrective actions live elsewhere — the OCR Review Queue, and
- * nowhere yet for validation, since the backend has no standalone validation stage). Approval and
- * Matching are real, live data from their own endpoints; only Approval's action buttons are
- * stage-gated to Pending Approval.
+ * nowhere yet for validation, since the backend has no standalone validation stage). Approval is
+ * real, live data from its own endpoint; only its action buttons are stage-gated to Pending
+ * Approval.
  */
 export default function InvoiceDetailPage() {
   const { invoiceId } = useParams();
@@ -60,8 +59,6 @@ export default function InvoiceDetailPage() {
       </div>
     );
   }
-
-  const symbol = invoice.currency?.symbol || "₹";
 
   return (
     <div className="p-6">
@@ -107,7 +104,6 @@ export default function InvoiceDetailPage() {
           <InvoiceOcrReviewPanel invoice={invoice} />
           <InvoiceApprovalPanel invoice={invoice} />
           <InvoiceValidationPanel />
-          <InvoiceMatchingCard invoiceId={invoice.id} currencySymbol={symbol} />
 
           <PageCard>
             <PageCardContent>

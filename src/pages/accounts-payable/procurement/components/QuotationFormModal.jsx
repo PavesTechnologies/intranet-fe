@@ -15,14 +15,25 @@ const emptyForm = () => ({
   quotationDate: "",
   validUntil: "",
   totalAmount: "",
+  deliveryDays: "",
+  paymentTerms: "",
 });
 
-export default function QuotationFormModal({ isOpen, onClose, prId }) {
+/**
+ * Records a quotation for a requisition. When `rfqId` is supplied (invoked from the RFQ
+ * detail page), the vendor list is restricted to that RFQ's invited vendors and the
+ * quotation is linked back to the RFQ; otherwise this is the original manual/catalog
+ * quotation entry, unchanged.
+ */
+export default function QuotationFormModal({ isOpen, onClose, prId, rfqId, invitedVendorIds }) {
   const [form, setForm] = useState(emptyForm());
   const [file, setFile] = useState(null);
   const [errors, setErrors] = useState({});
 
-  const { vendorOptions, isLoading: vendorsLoading } = useVendorOptions();
+  const { vendorOptions: allVendorOptions, isLoading: vendorsLoading } = useVendorOptions();
+  const vendorOptions = invitedVendorIds
+    ? allVendorOptions.filter((opt) => invitedVendorIds.includes(opt.value))
+    : allVendorOptions;
   const createQuotation = useCreateQuotation(prId);
 
   const handleChange = (e) => {
@@ -41,6 +52,7 @@ export default function QuotationFormModal({ isOpen, onClose, prId }) {
     if (!form.vendorId) nextErrors.vendorId = "Vendor is required.";
     if (!file) nextErrors.file = "A quotation document is required.";
     if (form.totalAmount !== "" && Number(form.totalAmount) < 0) nextErrors.totalAmount = "Cannot be negative.";
+    if (form.deliveryDays !== "" && Number(form.deliveryDays) < 0) nextErrors.deliveryDays = "Cannot be negative.";
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -63,6 +75,9 @@ export default function QuotationFormModal({ isOpen, onClose, prId }) {
         quotationDate: form.quotationDate || undefined,
         validUntil: form.validUntil || undefined,
         totalAmount: form.totalAmount !== "" ? form.totalAmount : undefined,
+        rfqId: rfqId || undefined,
+        deliveryDays: form.deliveryDays !== "" ? form.deliveryDays : undefined,
+        paymentTerms: form.paymentTerms.trim() || undefined,
         file,
       });
       toast.success("Quotation added.");
@@ -144,6 +159,26 @@ export default function QuotationFormModal({ isOpen, onClose, prId }) {
             name="validUntil"
             type="date"
             value={form.validUntil}
+            onChange={handleChange}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormInput
+            label="Delivery Days"
+            name="deliveryDays"
+            type="number"
+            min="0"
+            step="1"
+            value={form.deliveryDays}
+            onChange={handleChange}
+            error={errors.deliveryDays}
+          />
+          <FormInput
+            label="Payment Terms"
+            name="paymentTerms"
+            placeholder="e.g. Net 30"
+            value={form.paymentTerms}
             onChange={handleChange}
           />
         </div>

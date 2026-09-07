@@ -1,5 +1,5 @@
 // src/pages/accounts-payable/invoice/pages/InvoiceUploadPage.jsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { UploadCloud, FileText, X } from "lucide-react";
@@ -13,6 +13,7 @@ import {
 } from "../hooks/useInvoiceMutations";
 import { useInvoiceValidationProgress, isValidationTerminal } from "../hooks/useInvoiceValidationProgress";
 import InvoiceProcessingPipeline from "../components/InvoiceProcessingPipeline";
+import Stage1ReviewSection from "../components/stage1/Stage1ReviewSection";
 import { AP_ROUTES } from "../../constants/routes";
 import { getApiErrorMessage } from "../../utils/apiError";
 
@@ -95,6 +96,16 @@ export default function InvoiceUploadPage() {
   const validationQuery = useInvoiceValidationProgress(pipeline?.jobId ?? null, {
     enabled: Boolean(pipeline?.jobId),
   });
+
+  // There's no backend endpoint to preview the source document before the invoice is saved (the
+  // only "view invoice" route needs a DB-persisted inbound_document_id that doesn't exist yet at
+  // this stage), so the Stage 1 document viewer renders the file the user already selected.
+  const fileUrl = useMemo(() => (selectedFile ? URL.createObjectURL(selectedFile) : null), [selectedFile]);
+  useEffect(() => {
+    return () => {
+      if (fileUrl) URL.revokeObjectURL(fileUrl);
+    };
+  }, [fileUrl]);
 
   // Resume-on-refresh: if a validation job was mid-flight when the page unloaded, pick the
   // pipeline UI back up from its job id instead of silently losing the user's place.
@@ -201,6 +212,91 @@ export default function InvoiceUploadPage() {
     clearStoredValidationJob();
   };
 
+  /**
+   * Queues a validation job for the given payload (either the raw extraction result on first
+   * upload, or { extraction_id } to revalidate against corrected cache data) and seeds a fresh
+   * `pipeline.validation` so InvoiceProcessingPipeline/Stage1ReviewSection re-render from scratch
+   * against the new job's polling status.
+   */
+  const runValidation = async (payload, sessionMeta) => {
+    try {
+      const queued = await validateFields.mutateAsync(payload);
+      const jobId = queued?.job_id;
+      if (!jobId) throw new Error("Validation did not return a job id.");
+
+      setPipeline((prev) =>
+        prev
+          ? {
+              ...prev,
+              jobId,
+              validation: {
+                status: queued.status || "QUEUED",
+                stages: {},
+                isValid: undefined,
+                requiresManualReview: undefined,
+                issues: [],
+                pollUnavailable: false,
+              },
+            }
+          : prev,
+      );
+
+      writeStoredValidationJob({ jobId, fileName: sessionMeta.fileName, extractionDurationMs: sessionMeta.extractionDurationMs });
+    } catch (error) {
+      const message = getApiErrorMessage(error, "Unable to start invoice validation.");
+      setPipeline((prev) =>
+        prev
+          ? {
+              ...prev,
+              validation: {
+                status: "FAILED",
+                stages: {},
+                isValid: undefined,
+                requiresManualReview: undefined,
+                issues: [],
+                pollUnavailable: false,
+                errorMessage: message,
+              },
+            }
+          : prev,
+      );
+      toast.error(message);
+    }
+  };
+
+  /** Re-runs validation against the corrected extraction cache after a Stage 1 field correction. */
+  const handleRevalidate = async (extractionId) => {
+    await runValidation(
+      { extraction_id: extractionId },
+      { fileName: pipeline?.fileName, extractionDurationMs: pipeline?.extraction?.durationMs ?? null },
+    );
+  };
+
+  /**
+   * Called by Stage1ReviewSection after a Vendor/Buyer/Tax/Amounts correction succeeds. Merges the
+   * backend's updated section into local state (the extracted payload itself is never persisted
+   * anywhere else, so this is the only place it can be refreshed from) and re-triggers validation
+   * so the stepper reflects the corrected data.
+   */
+  const handleFieldCorrected = (section, updatedSection) => {
+    setPipeline((prev) => {
+      if (!prev?.extractionResult) return prev;
+      return {
+        ...prev,
+        extractionResult: {
+          ...prev.extractionResult,
+          extracted_invoice: {
+            ...prev.extractionResult.extracted_invoice,
+            [section]: { ...prev.extractionResult.extracted_invoice[section], ...updatedSection },
+          },
+        },
+      };
+    });
+
+    const extractionId = pipeline?.extractionResult?.extraction_id;
+    if (extractionId) handleRevalidate(extractionId);
+  };
+
   const handleUpload = async () => {
     if (!selectedFile) {
       setValidationError("Please select a file to upload.");
@@ -240,49 +336,7 @@ export default function InvoiceUploadPage() {
         : prev,
     );
 
-    try {
-      const queued = await validateFields.mutateAsync(extracted);
-      const jobId = queued?.job_id;
-      if (!jobId) throw new Error("Validation did not return a job id.");
-
-      setPipeline((prev) =>
-        prev
-          ? {
-              ...prev,
-              jobId,
-              validation: {
-                status: queued.status || "QUEUED",
-                stages: {},
-                isValid: undefined,
-                requiresManualReview: undefined,
-                issues: [],
-                pollUnavailable: false,
-              },
-            }
-          : prev,
-      );
-
-      writeStoredValidationJob({ jobId, fileName, extractionDurationMs });
-    } catch (error) {
-      const message = getApiErrorMessage(error, "Unable to start invoice validation.");
-      setPipeline((prev) =>
-        prev
-          ? {
-              ...prev,
-              validation: {
-                status: "FAILED",
-                stages: {},
-                isValid: undefined,
-                requiresManualReview: undefined,
-                issues: [],
-                pollUnavailable: false,
-                errorMessage: message,
-              },
-            }
-          : prev,
-      );
-      toast.error(message);
-    }
+    await runValidation(extracted, { fileName, extractionDurationMs });
   };
 
   const handleSaveInvoice = async () => {
@@ -303,14 +357,29 @@ export default function InvoiceUploadPage() {
   const validationDone = pipeline?.validation && isValidationTerminal(pipeline.validation.status);
   const extractionFailed = pipeline?.extraction.status === "FAILED";
 
+  const inReview = Boolean(pipeline?.extractionResult);
+
   return (
     <div className="p-6">
-      <PageHeader title="Upload Invoice" subtitle="Upload a vendor invoice document for OCR processing" />
+      {!inReview && <PageHeader title="Upload Invoice" subtitle="Upload a vendor invoice document for OCR processing" />}
 
-      <div className="mx-auto max-w-2xl">
+      <div className={inReview ? "w-full" : "mx-auto max-w-2xl"}>
         {pipeline ? (
           <>
-            <InvoiceProcessingPipeline fileName={pipeline.fileName} extraction={pipeline.extraction} validation={pipeline.validation} />
+            {!inReview && (
+              <InvoiceProcessingPipeline fileName={pipeline.fileName} extraction={pipeline.extraction} validation={pipeline.validation} />
+            )}
+
+            {inReview && (
+              <Stage1ReviewSection
+                extractedInvoice={pipeline.extractionResult.extracted_invoice}
+                stages={pipeline.validation?.stages}
+                extractionId={pipeline.extractionResult.extraction_id}
+                fileUrl={fileUrl}
+                originalFilename={pipeline.fileName}
+                onCorrected={handleFieldCorrected}
+              />
+            )}
 
             {(extractionFailed || validationDone) && (
               <div className="mt-4 flex justify-end gap-2">
@@ -332,10 +401,16 @@ export default function InvoiceUploadPage() {
                     <Button
                       variant="primary"
                       onClick={handleSaveInvoice}
-                      disabled={!pipeline.extractionResult}
+                      disabled={!pipeline.extractionResult || !pipeline.validation?.isValid}
                       loading={createInvoice.isPending}
                       loadingText="Saving..."
-                      title={!pipeline.extractionResult ? "Extracted data isn't available after a refresh — please upload the file again." : undefined}
+                      title={
+                        !pipeline.extractionResult
+                          ? "Extracted data isn't available after a refresh — please upload the file again."
+                          : !pipeline.validation?.isValid
+                          ? "Resolve validation issues before saving this invoice."
+                          : undefined
+                      }
                     >
                       Save Invoice
                     </Button>

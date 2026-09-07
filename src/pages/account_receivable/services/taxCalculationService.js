@@ -49,10 +49,53 @@ export const getTaxCalculationErrorMessage = (error, fallback = "Tax calculation
 };
 
 /**
- * Normalizes backend TaxCalculation response
+ * @typedef {Object} TaxCalculationComponent
+ * @property {string} id
+ * @property {string} taxTypeId
+ * @property {string} taxTypeCode
+ * @property {string} taxTypeName
+ * @property {number|null} appliedRate
+ * @property {number} taxAmount
+ * @property {string} applicabilityType
+ */
+
+/**
+ * Normalizes a single tax component returned by the backend tax engine.
+ * The backend is the source of truth for which components exist, their
+ * rate, amount and applicability — this only guards against missing
+ * fields, it never derives or recalculates a value.
+ * @returns {TaxCalculationComponent}
+ */
+const normalizeTaxComponent = (component = {}, index = 0) => {
+  const source = component && typeof component === "object" ? component : {};
+  return {
+    id:
+      source.taxCalculationComponentId ||
+      source.tax_calculation_component_id ||
+      source.id ||
+      `${source.taxTypeCode || source.taxTypeId || "component"}-${index}`,
+    taxTypeId: source.taxTypeId || source.tax_type_id || "",
+    taxTypeCode: source.taxTypeCode || source.tax_type_code || "",
+    taxTypeName: source.taxTypeName || source.tax_type_name || "",
+    appliedRate:
+      source.appliedRate !== undefined && source.appliedRate !== null
+        ? Number(source.appliedRate)
+        : null,
+    taxAmount: source.taxAmount !== undefined && source.taxAmount !== null ? Number(source.taxAmount) : 0,
+    applicabilityType: source.applicabilityType || source.applicability_type || "",
+  };
+};
+
+/**
+ * Normalizes backend TaxCalculation response. Component composition
+ * (which tax types apply, how many, their rates and amounts) is entirely
+ * driven by `item.components` as returned by the backend — nothing here
+ * assumes a specific tax regime, count, or set of tax type codes.
  */
 export const normalizeTaxCalculation = (item = {}) => {
   if (!item || typeof item !== "object") return null;
+
+  const rawComponents = Array.isArray(item.components) ? item.components : [];
 
   return {
     ...item,
@@ -60,14 +103,11 @@ export const normalizeTaxCalculation = (item = {}) => {
     billingSnapshotId: item.billingSnapshotId || item.billing_snapshot_id || item.snapshotId || "",
     snapshotNumber: item.snapshotNumber || item.snapshot_number || "",
     taxRegionId: item.taxRegionId || item.tax_region_id || "",
+    taxRegionCode: item.taxRegionCode || item.tax_region_code || "",
+    taxConfigurationId: item.taxConfigurationId || item.tax_configuration_id || "",
     taxRateConfigurationId: item.taxRateConfigurationId || item.tax_rate_configuration_id || "",
     taxableAmount: item.taxableAmount !== undefined && item.taxableAmount !== null ? Number(item.taxableAmount) : null,
-    cgstRate: item.cgstRate !== undefined && item.cgstRate !== null ? Number(item.cgstRate) : null,
-    cgstAmount: item.cgstAmount !== undefined && item.cgstAmount !== null ? Number(item.cgstAmount) : null,
-    sgstRate: item.sgstRate !== undefined && item.sgstRate !== null ? Number(item.sgstRate) : null,
-    sgstAmount: item.sgstAmount !== undefined && item.sgstAmount !== null ? Number(item.sgstAmount) : null,
-    igstRate: item.igstRate !== undefined && item.igstRate !== null ? Number(item.igstRate) : null,
-    igstAmount: item.igstAmount !== undefined && item.igstAmount !== null ? Number(item.igstAmount) : null,
+    components: rawComponents.map(normalizeTaxComponent),
     totalTaxAmount: item.totalTaxAmount !== undefined && item.totalTaxAmount !== null ? Number(item.totalTaxAmount) : null,
     grandTotal: item.grandTotal !== undefined && item.grandTotal !== null ? Number(item.grandTotal) : null,
     status: item.status || "TAX_COMPLETED",

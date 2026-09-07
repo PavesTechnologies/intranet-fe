@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { toast } from "react-toastify";
-import { Plus } from "lucide-react";
+import { Plus, Download, Upload } from "lucide-react";
 import Button from "../../../../components/Button/Button";
 import Modal from "../../../../components/Modal/modal";
 import GenericTable from "../../../../components/Table/table";
 import { getApiErrorMessage } from "../../utils/apiError";
 import { formatDate } from "../../utils/formatters";
+import { getDocumentAvailability, downloadBlob } from "../../utils/documentUpload";
 import { usePurchaseOrders, usePurchaseOrderDetail } from "../../purchase-order/hooks/usePurchaseOrders";
 import { useGoodsReceipts } from "../../goods-receipt/hooks/useGoodsReceipts";
-import { useCreateGoodsReceipt } from "../../goods-receipt/hooks/useGoodsReceiptMutations";
+import { useCreateGoodsReceipt, useUploadGoodsReceiptDocument } from "../../goods-receipt/hooks/useGoodsReceiptMutations";
+import goodsReceiptService from "../../goods-receipt/services/goodsReceiptService";
 import VendorGrnForm, { DEFAULT_GRN_FORM, DEFAULT_GRN_LINE } from "./VendorGrnForm";
+import VendorDocumentUploadModal from "./VendorDocumentUploadModal";
 
 const toNumber = (value) => {
   const num = Number(value);
@@ -48,10 +51,17 @@ const VendorGrnTab = ({ vendorId, vendorName }) => {
   const [lines, setLines] = useState([{ ...DEFAULT_GRN_LINE }]);
   const [lineErrors, setLineErrors] = useState([]);
 
+  // Upload GRN Document — an additional option alongside manual entry above, scoped to a single
+  // existing GRN row (the upload API requires an existing grn_id).
+  const [uploadTarget, setUploadTarget] = useState(null); // the GRN row being uploaded to, or null
+  const [uploadedDocs, setUploadedDocs] = useState({}); // grn_id -> { fileName } — immediate feedback before refetch lands
+  const [downloadingGrnId, setDownloadingGrnId] = useState(null);
+
   const { goodsReceipts, isLoading, isError, error } = useGoodsReceipts(vendorId);
   const { purchaseOrders } = usePurchaseOrders(vendorId);
   const { poLines } = usePurchaseOrderDetail(formData.po_id || null);
   const createMutation = useCreateGoodsReceipt(vendorId);
+  const uploadMutation = useUploadGoodsReceiptDocument(vendorId);
 
   const hasPo = !!formData.po_id;
 
@@ -114,12 +124,61 @@ const VendorGrnTab = ({ vendorId, vendorName }) => {
     }
   };
 
-  const rows = goodsReceipts.map((grn) => ({
-    grnNumber: grn.grn_number || "—",
-    receiptDate: formatDate(grn.receipt_date),
-    poReference: grn.po?.po_number || "—",
-    lineCount: grn.goods_receipt_line?.length ?? 0,
-  }));
+  const openUploadModal = (grn) => setUploadTarget(grn);
+  const closeUploadModal = () => {
+    if (uploadMutation.isPending) return;
+    setUploadTarget(null);
+  };
+
+  const handleUploadSubmit = async (file) => {
+    const grnId = uploadTarget.grn_id;
+    try {
+      await uploadMutation.mutateAsync({ grnId, file });
+      setUploadedDocs((prev) => ({ ...prev, [grnId]: { fileName: file.name } }));
+      toast.success("GRN document uploaded successfully.");
+      setUploadTarget(null);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to upload GRN document."));
+      throw err; // keep the modal open with the file selected so the user can retry
+    }
+  };
+
+  const handleDownload = async (grn) => {
+    setDownloadingGrnId(grn.grn_id);
+    try {
+      const { blob, contentType, fileName } = await goodsReceiptService.downloadGoodsReceiptDocument(grn.grn_id);
+      downloadBlob(new Blob([blob], { type: contentType }), fileName || `${grn.grn_number || "goods-receipt"}.pdf`);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Could not download the GRN document."));
+    } finally {
+      setDownloadingGrnId(null);
+    }
+  };
+
+  const rows = goodsReceipts.map((grn) => {
+    const docInfo = getDocumentAvailability(grn, uploadedDocs[grn.grn_id]);
+    return {
+      grnNumber: grn.grn_number || "—",
+      receiptDate: formatDate(grn.receipt_date),
+      poReference: grn.po?.po_number || "—",
+      lineCount: grn.goods_receipt_line?.length ?? 0,
+      document: docInfo.available ? (
+        <Button
+          size="small"
+          variant="outline"
+          onClick={() => handleDownload(grn)}
+          loading={downloadingGrnId === grn.grn_id}
+          title={docInfo.fileName || undefined}
+        >
+          <Download className="h-3.5 w-3.5" /> Download
+        </Button>
+      ) : (
+        <Button size="small" variant="outline" onClick={() => openUploadModal(grn)}>
+          <Upload className="h-3.5 w-3.5" /> Upload
+        </Button>
+      ),
+    };
+  });
 
   if (isError) {
     return (
@@ -143,8 +202,8 @@ const VendorGrnTab = ({ vendorId, vendorName }) => {
         </div>
       ) : (
         <GenericTable
-          headers={["GRN Number", "Receipt Date", "PO Reference", "Line Count"]}
-          columns={["grnNumber", "receiptDate", "poReference", "lineCount"]}
+          headers={["GRN Number", "Receipt Date", "PO Reference", "Line Count", "Document"]}
+          columns={["grnNumber", "receiptDate", "poReference", "lineCount", "document"]}
           rows={rows}
           loading={isLoading}
         />
@@ -180,6 +239,14 @@ const VendorGrnTab = ({ vendorId, vendorName }) => {
           onRemoveLine={handleRemoveLine}
         />
       </Modal>
+
+      <VendorDocumentUploadModal
+        isOpen={!!uploadTarget}
+        onClose={closeUploadModal}
+        title={uploadTarget ? `Upload Document — GRN ${uploadTarget.grn_number || uploadTarget.grn_id}` : "Upload Document"}
+        onUpload={handleUploadSubmit}
+        isUploading={uploadMutation.isPending}
+      />
     </div>
   );
 };

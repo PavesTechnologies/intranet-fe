@@ -6,7 +6,7 @@ export const FINANCE_QUEUE_KEY = (page, size) => ["financeQueue", page, size];
 export const FINANCE_STATUS_KEY = (reportId) => ["financeStatus", reportId];
 export const FINANCE_REVIEWS_KEY = (reportId) => ["financeReviews", reportId];
 
-const unwrap = (res) => res.data?.data;
+const unwrap = (res) => (res?.data?.data !== undefined ? res.data.data : res?.data);
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 

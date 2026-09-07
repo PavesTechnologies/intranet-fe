@@ -202,14 +202,18 @@ const normalizeFixedPriceConfig = (record = {}) => ({
     firstPresent(record.totalContractValue, record.contractValue, record.manualContractValue, record.pmsBudget) ?? "",
   contractValueSource: fromApiContractValueSource(record.contractValueSource),
   pmsProjectBudget: firstPresent(record.pmsProjectBudget, record.pmsBudget) ?? "",
-  retentionPercent: firstPresent(record.retentionPercent, record.retentionPercentage) ?? "",
+  // retentionPercentage is the canonical backend field name (RetentionPercentDto);
+  // retentionPercent is only kept as a fallback for any older response shape.
+  retentionPercent: firstPresent(record.retentionPercentage, record.retentionPercent) ?? "",
   advanceReceived: firstPresent(record.advanceReceived, record.advanceAmount) ?? "",
   effectiveFrom: toLocalDateString(firstPresent(record.effectiveFrom, record.validFrom)) || "",
   effectiveTo: toLocalDateString(firstPresent(record.effectiveTo, record.validTo)) || "",
   remarks: record.remarks || "",
   retentionAmount: firstPresent(record.retentionAmount, record.retentionAmt) ?? "",
   billableAmount: firstPresent(record.billableAmount, record.billableAmt) ?? "",
-  remainingAmount: firstPresent(record.remainingAmount, record.remainingReceivable, record.remainingAmt) ?? "",
+  // remainingReceivable is the canonical backend field name; remainingAmount/remainingAmt
+  // are only kept as fallbacks for older response shapes.
+  remainingAmount: firstPresent(record.remainingReceivable, record.remainingAmount, record.remainingAmt) ?? "",
 });
 
 const normalizeBoolean = (value, fallback = false) => {
@@ -630,15 +634,29 @@ const normalizeWizardDetail = (config = {}, normalized = normalizeBillingConfigu
           ) || "",
         advanceReceived:
           firstPresent(rawBillingConfig.fixedPrice?.advanceReceived, rawBillingConfig.advanceReceived, config.advanceReceived) || "",
+        // retentionPercentage is the canonical backend field name — it was missing
+        // here entirely, so editing an existing Fixed Price config silently dropped
+        // the retention value (fell through to "" even though the API returned it).
         retentionPercent:
-          firstPresent(rawBillingConfig.fixedPrice?.retentionPercent, rawBillingConfig.retentionPercent, config.retentionPercent) || "",
+          firstPresent(
+            rawBillingConfig.fixedPrice?.retentionPercentage,
+            rawBillingConfig.fixedPrice?.retentionPercent,
+            rawBillingConfig.retentionPercentage,
+            rawBillingConfig.retentionPercent,
+            config.retentionPercentage,
+            config.retentionPercent,
+          ) ?? "",
         effectiveFrom: toLocalDateString(firstPresent(rawBillingConfig.fixedPrice?.effectiveFrom, rawBillingConfig.fixedPriceEffectiveFrom)) || "",
         effectiveTo: toLocalDateString(firstPresent(rawBillingConfig.fixedPrice?.effectiveTo, rawBillingConfig.fixedPriceEffectiveTo)) || "",
         remarks: firstPresent(rawBillingConfig.fixedPrice?.remarks, rawBillingConfig.fixedPriceRemarks) || "",
         pmsProjectBudget: firstPresent(rawBillingConfig.fixedPrice?.pmsProjectBudget) ?? "",
         retentionAmount: firstPresent(rawBillingConfig.fixedPrice?.retentionAmount) ?? "",
         billableAmount: firstPresent(rawBillingConfig.fixedPrice?.billableAmount) ?? "",
-        remainingAmount: firstPresent(rawBillingConfig.fixedPrice?.remainingAmount) ?? "",
+        // Backend field is "remainingReceivable", not "remainingAmount" — without this
+        // fallback, editing an existing Fixed Price config always showed a blank
+        // Remaining Receivable even though the API returned the correct value.
+        remainingAmount:
+          firstPresent(rawBillingConfig.fixedPrice?.remainingReceivable, rawBillingConfig.fixedPrice?.remainingAmount) ?? "",
       },
       milestones: rawBillingConfig.milestones || config.milestones || [],
       milestoneSettings: rawBillingConfig.milestoneSettings || config.milestoneSettings || {},
@@ -1168,7 +1186,9 @@ const buildFixedPriceRequestPayload = (fixedPrice = {}) => ({
   // contractValueSource is an optional enum — map the UI's "PMS"/"MANUAL" to the
   // backend's PMS_BUDGET/MANUAL values, sending null (not "" and not "PMS") when unset.
   contractValueSource: toApiContractValueSource(fixedPrice.contractValueSource),
-  retentionPercent: isBlank(fixedPrice.retentionPercent) ? null : Number(fixedPrice.retentionPercent),
+  // Backend field is "retentionPercentage" (RetentionPercentDto), not
+  // "retentionPercent" — that's only the internal form/state field name.
+  retentionPercentage: isBlank(fixedPrice.retentionPercent) ? null : Number(fixedPrice.retentionPercent),
   advanceReceived: isBlank(fixedPrice.advanceReceived) ? null : Number(fixedPrice.advanceReceived),
   effectiveFrom: toLocalDateString(fixedPrice.effectiveFrom) || "",
   effectiveTo: toLocalDateString(fixedPrice.effectiveTo) || "",
@@ -1526,8 +1546,12 @@ export const getBillingConfigurationStats = async () => {
   return {
     total: configurations.length,
     active: configurations.filter(
-      (config) => config.approvalStatus === "APPROVED" && config.billingStatus === "ACTIVE",
+      (config) => config.billingStatus === "ACTIVE",
     ).length,
+    inactive: configurations.filter(
+      (config) => config.billingStatus === "INACTIVE",
+    ).length,
+    approved: configurations.filter((config) => config.approvalStatus === "APPROVED").length,
     draft: configurations.filter((config) => config.approvalStatus === "DRAFT").length,
     pending: configurations.filter((config) => config.approvalStatus === "PENDING_APPROVAL").length,
     rejected: configurations.filter((config) => config.approvalStatus === "REJECTED").length,

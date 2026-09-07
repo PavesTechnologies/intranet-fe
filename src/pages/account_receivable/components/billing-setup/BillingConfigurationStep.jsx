@@ -20,6 +20,7 @@ import {
   CONTRACT_VALUE_SOURCE_OPTIONS,
 } from "../../data/wizardOptions";
 import { formatCurrency, formatDisplayDate } from "../../utils/format";
+import { getBillingTypeDisplayName } from "../../utils/billingType";
 import { getRecurringDateErrors, hasRecurringDateErrors, toDateOnly } from "../../utils/recurringBillingSchedule";
 import {
   getActiveBillingTypes,
@@ -66,8 +67,8 @@ function getPricingModelOptions(billingType) {
   }
 }
 
-// Half-Yearly is only offered for Recurring (see getBillingFrequencyOptions);
-// display order is fixed regardless of backend order.
+// Half-Yearly is offered for Recurring and Fixed Price (see
+// getBillingFrequencyOptions); display order is fixed regardless of backend order.
 const BILLING_FREQUENCY_ORDER = [
   "WEEKLY",
   "BI_WEEKLY",
@@ -84,6 +85,7 @@ const FIXED_PRICE_FREQUENCY_ORDER = [
   "BI_WEEKLY",
   "MONTHLY",
   "QUARTERLY",
+  "HALF_YEARLY",
   "ANNUALLY",
 ];
 const BILLING_TYPE_ORDER = [
@@ -131,18 +133,17 @@ function getBillingFrequencyOptions(billingType, frequencies = []) {
     );
   }
 
-  const withoutHalfYearly = frequencies.filter(
-    (option) => frequencyCode(option) !== "HALF_YEARLY",
-  );
-
   if (billingType === "FIXED_PRICE") {
-    return sortByOrder(withoutHalfYearly, FIXED_PRICE_FREQUENCY_ORDER, frequencyCode);
+    return sortByOrder(frequencies, FIXED_PRICE_FREQUENCY_ORDER, frequencyCode);
   }
 
-  // One-Time only makes sense against a single lump-sum contract value, so every
-  // other billing type (T&M, Milestone) never offers it, even if master data does.
+  // One-Time and Half-Yearly only make sense against Fixed Price/Recurring, so
+  // every other billing type (T&M, Milestone) never offers them, even if master
+  // data does.
   return sortByOrder(
-    withoutHalfYearly.filter((option) => frequencyCode(option) !== "ONE_TIME"),
+    frequencies.filter(
+      (option) => !["ONE_TIME", "HALF_YEARLY"].includes(frequencyCode(option)),
+    ),
     BILLING_FREQUENCY_ORDER,
     frequencyCode,
   );
@@ -242,7 +243,7 @@ function normalizeBillingType(type) {
   return {
     ...type,
     value,
-    label: value === "RECURRING" ? "Recurring" : name,
+    label: value === "RECURRING" ? "Recurring" : getBillingTypeDisplayName(name),
     billingTypeId: type.billingTypeId,
   };
 }
@@ -981,14 +982,16 @@ function FixedPriceForm({
             record.totalContractValue ?? record.contractValue ?? value.totalContractValue ?? "",
           contractValueSource: value.contractValueSource || "MANUAL",
           pmsProjectBudget: record.pmsProjectBudget ?? "",
-          retentionPercent: record.retentionPercent ?? record.retentionPercentage ?? "",
+          // retentionPercentage is the canonical backend field name — check it first.
+          retentionPercent: record.retentionPercentage ?? record.retentionPercent ?? "",
           advanceReceived: record.advanceReceived ?? "",
           effectiveFrom: record.effectiveFrom || "",
           effectiveTo: record.effectiveTo || "",
           remarks: record.remarks || "",
           retentionAmount: record.retentionAmount ?? "",
           billableAmount: record.billableAmount ?? "",
-          remainingAmount: record.remainingAmount ?? record.remainingReceivable ?? "",
+          // remainingReceivable is the canonical backend field name — check it first.
+          remainingAmount: record.remainingReceivable ?? record.remainingAmount ?? "",
         });
       } catch (error) {
         showStatusToast(
@@ -1062,7 +1065,10 @@ function FixedPriceForm({
     const apiContractValueSource = toApiContractValueSource(value.contractValueSource);
     const sharedFields = {
       contractValueSource: apiContractValueSource,
-      retentionPercent:
+      // Backend field is "retentionPercentage" (RetentionPercentDto) — "retentionPercent"
+      // is only the internal form/state field name, kept as-is to avoid churning every
+      // read/validation/calc site below that already references value.retentionPercent.
+      retentionPercentage:
         value.retentionPercent === "" || value.retentionPercent === null || value.retentionPercent === undefined
           ? null
           : Number(value.retentionPercent),
@@ -1140,9 +1146,16 @@ function FixedPriceForm({
       update({
         fixedPriceConfigurationId:
           saved?.fixedPriceConfigurationId || saved?.id || value.fixedPriceConfigurationId || null,
+        // Reconcile with the backend's canonical retentionPercentage so the field
+        // reflects exactly what was persisted (falls back to what was just typed
+        // if the response happens not to echo it back).
+        retentionPercent: saved?.retentionPercentage ?? saved?.retentionPercent ?? value.retentionPercent ?? "",
         retentionAmount: saved?.retentionAmount ?? value.retentionAmount ?? "",
         billableAmount: saved?.billableAmount ?? value.billableAmount ?? "",
-        remainingAmount: saved?.remainingAmount ?? value.remainingAmount ?? "",
+        // Backend field is "remainingReceivable", not "remainingAmount" — without this
+        // fallback the freshly-saved value was dropped and the summary kept showing
+        // the stale pre-save number (or blank on first create).
+        remainingAmount: saved?.remainingReceivable ?? saved?.remainingAmount ?? value.remainingAmount ?? "",
       });
       showStatusToast("Fixed price configuration saved", "success");
     } catch (error) {
@@ -2318,6 +2331,10 @@ export default function BillingConfigurationStep({
                 billingFrequencyId:
                   selectedFrequency?.billingFrequencyId ||
                   selectedFrequency?.id ||
+                  "",
+                billingFrequencyName:
+                  selectedFrequency?.label ||
+                  selectedFrequency?.billingFrequencyName ||
                   "",
               });
             }}

@@ -1,12 +1,22 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+import {
+  Sparkles,
+  Play,
+  RefreshCw,
+  Calculator,
+  ArrowRight,
+  Loader2,
+  SlidersHorizontal,
+} from "lucide-react";
 
 import { PageCard, PageCardContent } from "../../../components/Cards/PageCard";
 import Button from "../../../components/Button/Button";
 import Loader from "../../../components/ui/Loader";
 import FormInput from "../../../components/forms/FormInput";
 import Modal from "../../../components/Modal/modal";
+import StatusBadge from "../../../components/status/statusbadge";
+import Breadcrumb from "../../../components/Breadcrumb/Breadcrumb";
 import { showStatusToast } from "../../../components/toastfy/toast";
 
 import {
@@ -22,6 +32,86 @@ import SnapshotWorkspace from "../components/acquisition/SnapshotWorkspace";
 import BackIconButton from "../components/common/BackIconButton";
 
 const QUEUE_PATH = "/account-receivable/billing-data-acquisition";
+
+// Resolves the single primary, state-aware action shown in the page header —
+// avoids ever presenting more than one competing primary call-to-action.
+function getPrimaryAction(status, { acquiring, calculatingTax, onAcquire, onReValidate, onContinueToTax }) {
+  switch (status) {
+    case "NOT_ACQUIRED":
+      return {
+        label: acquiring ? "Acquiring Snapshot..." : "Acquire Snapshot",
+        icon: Play,
+        onClick: onAcquire,
+        disabled: acquiring,
+        spin: acquiring,
+        variant: "primary",
+      };
+    case "VALIDATING":
+      return { label: "Validating...", icon: RefreshCw, onClick: null, disabled: true, spin: true, variant: "primary" };
+    case "NO_BILLABLE_DATA":
+    case "NO_DATA":
+      return {
+        label: acquiring ? "Checking..." : "Check Again",
+        icon: RefreshCw,
+        onClick: onAcquire,
+        disabled: acquiring,
+        spin: acquiring,
+        variant: "primary",
+      };
+    case "PARTIALLY_READY":
+    case "PENDING_APPROVAL":
+      return {
+        label: acquiring ? "Re-Validating..." : "Re-Validate Approvals",
+        icon: RefreshCw,
+        onClick: onReValidate,
+        disabled: acquiring,
+        spin: acquiring,
+        variant: "primary",
+        className: "bg-amber-600 hover:bg-amber-700 text-white border-amber-600",
+      };
+    case "ACQUISITION_FAILED":
+      return {
+        label: acquiring ? "Retrying..." : "Retry Acquisition",
+        icon: RefreshCw,
+        onClick: onAcquire,
+        disabled: acquiring,
+        spin: acquiring,
+        variant: "danger",
+      };
+    case "CONFIGURATION_REQUIRED":
+      return {
+        label: "Review Billing Setup",
+        icon: SlidersHorizontal,
+        onClick: () => showStatusToast("Opening Billing Configuration Setup...", "info"),
+        disabled: false,
+        variant: "primary",
+        className: "bg-amber-600 hover:bg-amber-700 text-white border-amber-600",
+      };
+    case "READY":
+    case "READY_TO_TAX":
+    case "READY_FOR_TAX":
+      return {
+        label: calculatingTax ? "Calculating Tax..." : "Calculate Tax",
+        icon: calculatingTax ? Loader2 : Calculator,
+        onClick: onContinueToTax,
+        disabled: calculatingTax,
+        spin: calculatingTax,
+        variant: "success",
+      };
+    case "IN_TAX":
+      return { label: "Calculating Tax...", icon: Loader2, onClick: null, disabled: true, spin: true, variant: "success" };
+    case "TAX_COMPLETED":
+      return {
+        label: "View Tax Calculation",
+        icon: ArrowRight,
+        onClick: onContinueToTax,
+        disabled: false,
+        variant: "primary",
+      };
+    default:
+      return null;
+  }
+}
 
 export default function AcquisitionDetail() {
   const navigate = useNavigate();
@@ -435,29 +525,87 @@ export default function AcquisitionDetail() {
   }
 
   // --- RENDER DETAIL WORKSPACE ---
+  const statusUpper = (config.billingStatus || "NOT_ACQUIRED").toUpperCase();
+  const isAcquired =
+    statusUpper === "READY_TO_TAX" ||
+    statusUpper === "READY_FOR_TAX" ||
+    statusUpper === "READY" ||
+    statusUpper === "IN_TAX" ||
+    statusUpper === "TAX_COMPLETED";
+  const snapshotNumber = isAcquired ? acquisitionResults?.labor?.snapshotNumber || config.snapshotNumber || null : null;
+
+  const primaryAction = getPrimaryAction(statusUpper, {
+    acquiring: acquiring || generating,
+    calculatingTax,
+    onAcquire: () => handleTriggerAcquire(config),
+    onReValidate: handleReValidate,
+    onContinueToTax: handleContinueToTax,
+  });
+
   return (
-    <div className="space-y-4">
-      <div>
-        <div className="mb-1 flex items-center gap-2">
-          <BackIconButton onClick={() => navigate(QUEUE_PATH)} label="Back to Acquisition Queue" />
-          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{config.projectName}</h1>
+    <div className="mx-auto w-full max-w-7xl space-y-5">
+      <Breadcrumb
+        items={[
+          { label: "Billing Data Acquisition", to: QUEUE_PATH },
+          { label: config.projectName || snapshotNumber || "Snapshot" },
+        ]}
+      />
+
+      <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Billing Snapshot</p>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="font-mono text-xl font-bold text-slate-900 sm:text-2xl">
+              {snapshotNumber || "Not Yet Acquired"}
+            </h1>
+            <StatusBadge label={config.billingStatus || "NOT_ACQUIRED"} size="sm" />
+          </div>
+          <p className="text-sm text-slate-600">
+            <span className="font-semibold text-slate-800">{config.projectName}</span>
+            <span className="mx-1.5 text-slate-300">&middot;</span>
+            {config.client}
+          </p>
+          {config.billingPeriod && (
+            <p className="text-xs text-slate-400">
+              Billing Period <span className="ml-1 font-medium text-slate-600">{config.billingPeriod}</span>
+            </p>
+          )}
         </div>
-        <p className="mt-0.5 text-sm text-slate-500">
-          {config.client} &middot; <span className="font-mono">{config.projectCode}</span>
-        </p>
+
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {isAcquired && (
+            <Button
+              variant="outline"
+              size="small"
+              onClick={() => executeAcquisition(config, config.periodStart, config.periodEnd)}
+              disabled={acquiring}
+              className="text-xs"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${acquiring ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          )}
+          {primaryAction && (
+            <Button
+              variant={primaryAction.variant}
+              size="small"
+              onClick={primaryAction.onClick}
+              disabled={primaryAction.disabled}
+              className={`text-xs font-semibold ${primaryAction.className || ""}`}
+            >
+              <primaryAction.icon className={`h-3.5 w-3.5 ${primaryAction.spin ? "animate-spin" : ""}`} />
+              {primaryAction.label}
+            </Button>
+          )}
+        </div>
       </div>
 
       <SnapshotWorkspace
         config={config}
         acquisitionResults={acquisitionResults}
         acquiring={acquiring || generating}
-        onAcquire={handleTriggerAcquire}
-        onReAcquire={(cfg) => executeAcquisition(cfg, cfg.periodStart, cfg.periodEnd)}
-        onContinueToTax={handleContinueToTax}
         onRemindPM={handleRemindPM}
-        onReValidate={handleReValidate}
         remindingPM={remindingPM}
-        calculatingTax={calculatingTax}
       />
 
       {/* Manual Date Period Config Modal */}

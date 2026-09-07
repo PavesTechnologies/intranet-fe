@@ -35,6 +35,27 @@ export function formatDate(isoDate, placeholder = "—") {
 }
 
 /**
+ * Formats an ISO datetime string for display, e.g. "2026-08-07T14:05:00Z" -> "07 Aug 2026, 2:05 pm".
+ * Returns a placeholder rather than "Invalid Date" for empty/unparsable input.
+ * @param {string|null|undefined} isoDateTime
+ * @param {string} [placeholder="—"]
+ * @returns {string}
+ */
+export function formatDateTime(isoDateTime, placeholder = "—") {
+  if (!isoDateTime) return placeholder;
+  const date = new Date(isoDateTime);
+  if (Number.isNaN(date.getTime())) return placeholder;
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+/**
  * Balance = net amount - amount paid, clamped so floating-point noise never displays as e.g.
  * "-0.00" for a fully paid invoice.
  * @param {number|null|undefined} netAmount

@@ -1,16 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   X,
   Check,
-  HelpCircle,
+  MessageSquareWarning,
   Landmark,
   FileText,
   Wallet,
   User,
   Layers,
   AlertTriangle,
-  ArrowRight,
 } from "lucide-react";
 import Button from "@/components/Button/Button";
 import { showStatusToast } from "@/components/toastfy/toast";
@@ -23,6 +22,13 @@ import ReceiptViewer from "../../../approval-engine/components/ReceiptViewer";
 import CommentPromptModal from "../../../approval-engine/components/CommentPromptModal";
 import { useFinanceStatus, useFinanceReviews, useVerifyLineItem, useQueryLineItem } from "../hooks/useFinanceVerification";
 import { formatMoney, formatDate } from "../../../approval-engine/constants/approvalLabels";
+
+const isLineEligible = (line) => {
+  if (!line) return false;
+  if (line.eligibleForVerify === false || line.eligible === false || line.isEligible === false) return false;
+  if (line.ineligibleReason && String(line.ineligibleReason).trim().length > 0) return false;
+  return true;
+};
 
 const Section = ({ icon, title, children }) => (
   <div className="rounded-xl border border-gray-200 bg-white p-4">
@@ -45,10 +51,9 @@ export default function FinanceReviewPanel({ isOpen, onClose, reportId, queueIte
   const [selectedLineItemId, setSelectedLineItemId] = useState(null);
   const [queryingLine, setQueryingLine] = useState(null);
 
-  const queryClient = useQueryClient();
   const { data: approvalStatus } = useFinanceStatus(isOpen ? reportId : null);
   const { data: lineItemReviews } = useFinanceReviews(isOpen ? reportId : null);
-
+  
   const verifyLineItem = useVerifyLineItem();
   const queryLineItem = useQueryLineItem();
 
@@ -72,17 +77,8 @@ export default function FinanceReviewPanel({ isOpen, onClose, reportId, queueIte
     staleTime: 30_000,
   });
 
-  // fullReport is refetched after every action below (see refetchReviewData) - queueItem is a
-  // point-in-time snapshot from when this panel was opened and never updates again, so it's only a
-  // same-render fallback until fullReport loads. Mirrors the identical fix in ExpenseReviewPanel.jsx.
-  const reportStatus = fullReport?.reportStatus || queueItem?.reportStatus || "PENDING_FINANCE_VERIFICATION";
+  const reportStatus = fullReport?.reportStatus || "PENDING_FINANCE_VERIFICATION";
   const lineItems = queueItem?.pendingLineItems || [];
-  const hasMovedPastFinance = !!reportStatus && reportStatus !== "PENDING_FINANCE_VERIFICATION";
-
-  const refetchReviewData = () => {
-    queryClient.invalidateQueries({ queryKey: ["expenseReviewReport", reportId] });
-    queryClient.invalidateQueries({ queryKey: ["expenseReviewLineItems", reportId] });
-  };
 
   // Match queue items or full items
   const mergedLineItems = useMemo(() => {
@@ -135,8 +131,8 @@ export default function FinanceReviewPanel({ isOpen, onClose, reportId, queueIte
   const reportNumber = queueItem?.reportNumber || fullReport?.reportNumber;
   const title = fullReport?.title;
   const businessPurpose = fullReport?.businessPurpose;
-  const costCenterName = queueItem?.costCenterName || fullReport?.costCenterName;
-  const submittedAt = queueItem?.submittedAt || fullReport?.createdAt;
+  const costCenterName = queueItem?.costCenterName || queueItem?.costCenter || queueItem?.costCenterCode || queueItem?.departmentName || fullReport?.costCenterName || fullReport?.costCenter;
+  const submittedAt = queueItem?.submittedAt || queueItem?.createdAt || queueItem?.submittedDate || fullReport?.submittedAt || fullReport?.createdAt;
   const totalAmount = queueItem?.totalAmount ?? fullReport?.totalAmount;
   const currencyCode = queueItem?.currencyCode || fullReport?.currencyCode;
 
@@ -150,22 +146,8 @@ export default function FinanceReviewPanel({ isOpen, onClose, reportId, queueIte
     verifyLineItem.mutate(
       { reportId, lineItemId: selectedLine.lineItemId },
       {
-        // Read straight off the mutation response (freshest possible signal) - if this was the
-        // last required line item, the backend has already moved the report to APPROVED in this
-        // same call, so close immediately instead of leaving stale Verify/Query buttons up until
-        // some other render happens to notice.
-        onSuccess: (data) => {
-          refetchReviewData();
-          showStatusToast("Line item verified successfully", "success");
-          if (data?.reportStatus && data.reportStatus !== "PENDING_FINANCE_VERIFICATION") {
-            showStatusToast("Every required line item is verified - this report is now Approved.", "success");
-            onClose();
-          }
-        },
-        onError: (err) => {
-          refetchReviewData();
-          showStatusToast(err.response?.data?.message || "Failed to verify line item", "error");
-        },
+        onSuccess: () => showStatusToast("Line item verified successfully", "success"),
+        onError: (err) => showStatusToast(err.response?.data?.message || "Failed to verify line item", "error"),
       }
     );
   };
@@ -184,20 +166,6 @@ export default function FinanceReviewPanel({ isOpen, onClose, reportId, queueIte
           <X className="h-5 w-5" />
         </button>
       </header>
-
-      {hasMovedPastFinance && (
-        <div className="shrink-0 border-b border-blue-200 bg-blue-50 px-4 py-3 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-blue-800">
-              <ArrowRight className="h-4 w-4" />
-              This report has moved past Finance Verification - no further action is possible here.
-            </p>
-            <Button size="small" variant="outline" onClick={onClose}>
-              Back to Finance Queue
-            </Button>
-          </div>
-        </div>
-      )}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
         <div className="h-[42vh] shrink-0 border-b border-gray-200 p-3 md:h-auto md:w-[42%] md:border-b-0 md:border-r md:p-4">
@@ -290,7 +258,7 @@ export default function FinanceReviewPanel({ isOpen, onClose, reportId, queueIte
                     </div>
                   )}
 
-                  {!selectedLine.eligibleForVerify && selectedLine.ineligibleReason && (
+                  {!isLineEligible(selectedLine) && selectedLine.ineligibleReason && (
                     <div className="mt-3 border-t border-gray-100 pt-3 flex items-start gap-2 text-sm text-rose-700 font-medium bg-rose-50 p-2.5 rounded-lg border border-rose-200">
                       <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                       <div>
@@ -327,11 +295,11 @@ export default function FinanceReviewPanel({ isOpen, onClose, reportId, queueIte
                 disabled={isMutating || !selectedLine}
                 onClick={() => setQueryingLine(selectedLine)}
               >
-                <HelpCircle className="h-4 w-4" /> Query Line
+                <MessageSquareWarning className="h-4 w-4" /> Request Correction
               </Button>
               <Button
                 variant="success"
-                disabled={isMutating || !selectedLine || !selectedLine.eligibleForVerify}
+                disabled={isMutating || !selectedLine || !isLineEligible(selectedLine)}
                 loading={verifyLineItem.isPending}
                 onClick={handleVerify}
               >
@@ -344,10 +312,10 @@ export default function FinanceReviewPanel({ isOpen, onClose, reportId, queueIte
 
       <CommentPromptModal
         isOpen={!!queryingLine}
-        title="Raise Finance Query"
-        description="Specify the reason for querying this line item. The employee will see this comment and can fix the line item details."
-        contextLabel={queryingLine ? `Querying: ${queryingLine.merchantName || queryingLine.categoryName || "Line item"} — ${formatMoney(queryingLine.amount, queryingLine.currencyCode)}` : ""}
-        confirmLabel="Raise Query"
+        title="Request correction"
+        description="The employee will see this comment and can fix the line item details, then resubmit the report."
+        contextLabel={queryingLine ? `Correcting: ${queryingLine.merchantName || queryingLine.categoryName || "Line item"} — ${formatMoney(queryingLine.amount, queryingLine.currencyCode)}` : ""}
+        confirmLabel="Request Correction"
         confirmVariant="danger"
         isLoading={queryLineItem.isPending}
         onCancel={() => setQueryingLine(null)}
@@ -356,14 +324,11 @@ export default function FinanceReviewPanel({ isOpen, onClose, reportId, queueIte
             { reportId, lineItemId: queryingLine.lineItemId, reason },
             {
               onSuccess: () => {
-                refetchReviewData();
-                showStatusToast("Query raised successfully", "success");
+                showStatusToast("Correction requested successfully", "success");
                 setQueryingLine(null);
+                onClose();
               },
-              onError: (err) => {
-                refetchReviewData();
-                showStatusToast(err.response?.data?.message || "Failed to raise query", "error");
-              },
+              onError: (err) => showStatusToast(err.response?.data?.message || "Failed to request correction", "error"),
             }
           );
         }}

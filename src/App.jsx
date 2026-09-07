@@ -47,9 +47,14 @@ import PaymentDetailsPage from "./pages/accounts-payable/payment/pages/PaymentDe
 import APReportsPage from "./pages/accounts-payable/reports/pages/APReportsPage.jsx";
 import APSettingsPage from "./pages/accounts-payable/settings/pages/APSettingsPage.jsx";
 import SystemConfigurationPage from "./pages/accounts-payable/system-configuration/pages/SystemConfigurationPage.jsx";
+import {
+  PROCUREMENT_PERMISSIONS,
+  PROCUREMENT_ANY_VIEW_PERMISSIONS,
+} from "./pages/accounts-payable/constants/procurementPermissions";
 import ProcurementPage from "./pages/accounts-payable/procurement/pages/ProcurementPage.jsx";
 import PrDetailPage from "./pages/accounts-payable/procurement/pages/PrDetailPage.jsx";
 import PurchaseOrderDetailPage from "./pages/accounts-payable/procurement/pages/PurchaseOrderDetailPage.jsx";
+import RfqDetailPage from "./pages/accounts-payable/procurement/pages/RfqDetailPage.jsx";
 
 
 // Resource Management
@@ -609,7 +614,11 @@ const AppRoutes = () => {
           <Route
             path={AP_ROUTES.PROCUREMENT}
             element={
-              <ProtectedRoute allowedRoles={AP_ALL_ROLES}>
+              // AP_ALL_ROLES stays as the coarse "is this an AP user at all" gate; the real
+              // Procurement authorization is the permission check layered on top — a user
+              // needs at least one of the five *_VIEW permissions to land on this page (each
+              // tab inside it is then independently gated by its own single permission).
+              <ProtectedRoute allowedRoles={AP_ALL_ROLES} anyPermissions={PROCUREMENT_ANY_VIEW_PERMISSIONS}>
                 <ProcurementPage />
               </ProtectedRoute>
             }
@@ -617,7 +626,7 @@ const AppRoutes = () => {
           <Route
             path={AP_ROUTES.PROCUREMENT_PR_DETAIL()}
             element={
-              <ProtectedRoute allowedRoles={AP_ALL_ROLES}>
+              <ProtectedRoute allowedRoles={AP_ALL_ROLES} permission={PROCUREMENT_PERMISSIONS.PR_VIEW}>
                 <PrDetailPage />
               </ProtectedRoute>
             }
@@ -625,8 +634,18 @@ const AppRoutes = () => {
           <Route
             path={AP_ROUTES.PROCUREMENT_PO_DETAIL()}
             element={
-              <ProtectedRoute allowedRoles={AP_ALL_ROLES}>
+              <ProtectedRoute allowedRoles={AP_ALL_ROLES} permission={PROCUREMENT_PERMISSIONS.PO_VIEW}>
                 <PurchaseOrderDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={AP_ROUTES.PROCUREMENT_RFQ_DETAIL()}
+            element={
+              // RFQ is a sourcing/quotation activity — gated by QUOTATION_VIEW, the closest
+              // matching permission (no dedicated RFQ permission exists in the UMS matrix).
+              <ProtectedRoute allowedRoles={AP_ALL_ROLES} permission={PROCUREMENT_PERMISSIONS.QUOTATION_VIEW}>
+                <RfqDetailPage />
               </ProtectedRoute>
             }
           />

@@ -12,6 +12,7 @@ import { usePoStatuses } from "../../hooks/useApLookups";
 import { usePurchaseOrderList } from "../../purchase-order/hooks/usePurchaseOrders";
 import { useAllPurchaseRequisitions } from "../hooks/usePurchaseRequisitions";
 import useVendorOptions from "../hooks/useVendorOptions";
+import EmptyState from "./EmptyState";
 
 const ALL = "";
 
@@ -40,7 +41,7 @@ export default function PurchaseOrdersTab() {
     ...poStatuses.map((s) => ({ value: s.status_id, label: s.status_name })),
   ];
 
-  const headers = ["PO Number", "PR Reference", "Vendor", "PO Date", "Total Amount", "Status", "Actions"];
+  const headers = ["PO Number", "PR Number", "Vendor", "PO Date", "PO Amount", "PO Status", "Actions"];
   const columns = ["poNumber", "prReference", "vendor", "poDate", "totalAmount", "status", "actions"];
 
   const rows = purchaseOrders.map((po) => ({
@@ -76,9 +77,10 @@ export default function PurchaseOrdersTab() {
       ) : isLoading ? (
         <LoadingSpinner text="Loading purchase orders..." />
       ) : purchaseOrders.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-          No purchase orders found.
-        </div>
+        <EmptyState
+          title="No purchase orders yet"
+          description="A purchase order is created from a requisition once a vendor has been selected."
+        />
       ) : (
         <div className="w-full overflow-x-auto rounded-lg">
           <GenericTable headers={headers} rows={rows} columns={columns} />

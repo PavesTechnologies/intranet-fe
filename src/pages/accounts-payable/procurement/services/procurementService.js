@@ -9,7 +9,8 @@ const authHeaders = () => ({
 
 /**
  * Procurement API (Purchase Requisition -> Quotation -> Vendor Selection -> Purchase Order).
- * Matches Backend/API_Layer/routes/procurement_route.py exactly (21 endpoints).
+ * Matches Backend/API_Layer/routes/procurement_route.py. RFQ endpoints live in
+ * ./rfqService.js (Backend/API_Layer/routes/rfq_route.py, mounted at /apm/rfq).
  */
 export const procurementService = {
   // ── Purchase Requisition ────────────────────────────────────────────────
@@ -113,6 +114,22 @@ export const procurementService = {
     return res.data;
   },
 
+  returnPurchaseRequisition: async (prId, reason) => {
+    const res = await api.post(
+      `${BASE}/purchase-requisitions/${prId}/return`,
+      { reason },
+      { headers: authHeaders() },
+    );
+    return res.data;
+  },
+
+  resubmitPurchaseRequisition: async (prId) => {
+    const res = await api.post(`${BASE}/purchase-requisitions/${prId}/resubmit`, null, {
+      headers: authHeaders(),
+    });
+    return res.data;
+  },
+
   // ── Purchase Requisition Lines (DRAFT only) ─────────────────────────────
 
   addLine: async (prId, payload) => {
@@ -144,9 +161,13 @@ export const procurementService = {
    * Multipart create — the backend requires a file. Content-Type/boundary is left to the
    * axios instance's request interceptor (it strips the default JSON header for FormData).
    * @param {{vendorId: number, quotationNumber?: string, quotationDate?: string,
-   *   validUntil?: string, totalAmount?: number, file: File}} data
+   *   validUntil?: string, totalAmount?: number, rfqId?: number, deliveryDays?: number,
+   *   paymentTerms?: string, file: File}} data
    */
-  createQuotation: async (prId, { vendorId, quotationNumber, quotationDate, validUntil, totalAmount, file }) => {
+  createQuotation: async (
+    prId,
+    { vendorId, quotationNumber, quotationDate, validUntil, totalAmount, rfqId, deliveryDays, paymentTerms, file },
+  ) => {
     const formData = new FormData();
     formData.append("vendor_id", vendorId);
     if (quotationNumber) formData.append("quotation_number", quotationNumber);
@@ -155,6 +176,11 @@ export const procurementService = {
     if (totalAmount !== undefined && totalAmount !== null && totalAmount !== "") {
       formData.append("total_amount", totalAmount);
     }
+    if (rfqId !== undefined && rfqId !== null && rfqId !== "") formData.append("rfq_id", rfqId);
+    if (deliveryDays !== undefined && deliveryDays !== null && deliveryDays !== "") {
+      formData.append("delivery_days", deliveryDays);
+    }
+    if (paymentTerms) formData.append("payment_terms", paymentTerms);
     formData.append("file", file);
 
     const res = await api.post(`${BASE}/purchase-requisitions/${prId}/quotations`, formData);
@@ -194,10 +220,10 @@ export const procurementService = {
 
   // ── Vendor Selection ─────────────────────────────────────────────────────
 
-  selectVendor: async (prId, quotationId) => {
+  selectVendor: async (prId, quotationId, reason) => {
     const res = await api.post(
       `${BASE}/purchase-requisitions/${prId}/select-vendor`,
-      { quotation_id: quotationId },
+      { quotation_id: quotationId, reason: reason || undefined },
       { headers: authHeaders() },
     );
     return res.data;
