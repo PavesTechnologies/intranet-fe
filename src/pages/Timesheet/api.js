@@ -248,7 +248,12 @@ export async function filterByRange(startDate, endDate) {
 
 export async function getManagerDashboardData(startDate, endDate) {
   try {
-    const res = await api.get(`${apiEndpoint}/api/manager/summary`);
+    // The endpoint takes an optional startDate/endDate and defaults to the current
+    // month. These arguments used to be declared and then dropped, so the summary
+    // always showed the current month no matter what the caller asked for.
+    const res = await api.get(`${apiEndpoint}/api/manager/summary`, {
+      params: startDate && endDate ? { startDate, endDate } : undefined,
+    });
     return res.data;
   } catch (err) {
     const message =

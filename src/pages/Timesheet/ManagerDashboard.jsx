@@ -13,7 +13,15 @@ import LoadingSpinner from "../../components/LoadingSpinner";
 import { showStatusToast } from "../../components/toastfy/toast";
 import api from "../../api/axiosInstance";
 
-const ManagerDashboard = ({ data, loading, setStatusFilter, handleScroll }) => {
+// `periodLabel` names the month the summary covers. Defaulted so the other consumers
+// of this component render exactly as before.
+const ManagerDashboard = ({
+  data,
+  loading,
+  setStatusFilter,
+  handleScroll,
+  periodLabel = "Last 15 days",
+}) => {
   const [stats, setStats] = useState(null);
   const [weeklyData, setWeeklyData] = useState([]);
   const [reminding, setReminding] = useState(false);
@@ -175,7 +183,7 @@ const ManagerDashboard = ({ data, loading, setStatusFilter, handleScroll }) => {
       <div className="bg-white shadow-lg rounded-2xl p-8 flex-1">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-gray-700">
-            Missing timesheets for Last 15 days
+            Missing timesheets for {periodLabel}
           </h2>
           <button
             onClick={handleRemind}

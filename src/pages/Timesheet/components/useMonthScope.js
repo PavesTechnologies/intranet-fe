@@ -15,6 +15,12 @@ const SHORT_MONTHS = [
 export const monthScopeKey = (year, month) =>
   `${year}-${String(month).padStart(2, "0")}`;
 
+const iso = (year, month, day) =>
+  `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+/** Day 0 of the next month is the last day of this one. */
+const lastDayOf = (year, month) => new Date(year, month, 0).getDate();
+
 /**
  * [current, previous] as { value, label, month, year }.
  * `month` is 1-based to match the API. new Date(y, m - 1, 1) with m = 0 rolls the
@@ -31,6 +37,10 @@ export const buildMonthScopeOptions = (now = new Date()) => {
     label: `${SHORT_MONTHS[month - 1]} ${year}`,
     month,
     year,
+    // Endpoints that take a range instead of month/year (the manager summary) use
+    // these, so every read on the screen stays on the same window.
+    startDate: iso(year, month, 1),
+    endDate: iso(year, month, lastDayOf(year, month)),
   }));
 };
 
@@ -44,6 +54,8 @@ export default function useMonthScope() {
   return {
     month: selected.month,
     year: selected.year,
+    startDate: selected.startDate,
+    endDate: selected.endDate,
     label: selected.label,
     monthKey,
     setMonthKey,
