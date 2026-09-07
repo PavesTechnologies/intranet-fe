@@ -9,7 +9,7 @@ import { getApiErrorMessage } from "../../utils/apiError";
 import { PR_PRIORITY_OPTIONS } from "../constants/procurementStatus";
 import { useCreatePurchaseRequisition } from "../hooks/usePurchaseRequisitionMutations";
 import useDepartments from "../../system-configuration/hooks/useDepartments";
-import usePurchaseCategories from "../../system-configuration/hooks/usePurchaseCategories";
+import { usePurchaseCategoriesByDepartment } from "../../system-configuration/hooks/usePurchaseCategories";
 
 const emptyForm = () => ({
   departmentId: "",
@@ -30,8 +30,17 @@ export default function PrCreateModal({ isOpen, onClose, onCreated }) {
   const [errors, setErrors] = useState({});
 
   const { data: departments = [] } = useDepartments();
-  const { data: categories = [] } = usePurchaseCategories();
   const createMutation = useCreatePurchaseRequisition();
+
+  // Purchase Category is dependent on Department (category.department_id) — fetched only
+  // once a department is chosen, scoped server-side via the existing department_id filter on
+  // GET /master/purchase-categories, never by fetching everything and filtering client-side.
+  const selectedDepartmentId = form.departmentId ? Number(form.departmentId) : undefined;
+  const {
+    data: categories = [],
+    isLoading: categoriesLoading,
+    isError: categoriesError,
+  } = usePurchaseCategoriesByDepartment(selectedDepartmentId);
 
   const departmentOptions = departments
     .filter((d) => d.is_active)
@@ -40,9 +49,25 @@ export default function PrCreateModal({ isOpen, onClose, onCreated }) {
     .filter((c) => c.is_active)
     .map((c) => ({ value: c.id, label: `${c.code} — ${c.name}` }));
 
+  const categoryDisabled = !selectedDepartmentId || categoriesLoading || categoriesError || categoryOptions.length === 0;
+  const categoryPlaceholder = !selectedDepartmentId
+    ? "Select department first"
+    : categoriesLoading
+      ? "Loading categories..."
+      : categoriesError
+        ? "Unable to load purchase categories."
+        : categoryOptions.length === 0
+          ? "No purchase categories available for this department."
+          : "Select category";
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+      // Changing the department invalidates whichever category was picked for the old one.
+      ...(name === "departmentId" ? { purchaseCategoryId: "" } : {}),
+    }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
@@ -121,15 +146,22 @@ export default function PrCreateModal({ isOpen, onClose, onCreated }) {
             requiredMark
             error={errors.departmentId}
           />
-          <FormSelect
-            label="Purchase Category"
-            name="purchaseCategoryId"
-            value={form.purchaseCategoryId}
-            onChange={handleChange}
-            options={[{ value: "", label: "Select category" }, ...categoryOptions]}
-            requiredMark
-            error={errors.purchaseCategoryId}
-          />
+          <div>
+            <FormSelect
+              label="Purchase Category"
+              name="purchaseCategoryId"
+              value={form.purchaseCategoryId}
+              onChange={handleChange}
+              options={categoryOptions}
+              placeholder={categoryPlaceholder}
+              disabled={categoryDisabled}
+              requiredMark
+              error={errors.purchaseCategoryId}
+            />
+            {categoriesError && (
+              <p className="mt-1 text-xs text-red-500">Unable to load purchase categories.</p>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
