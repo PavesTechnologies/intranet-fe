@@ -5,6 +5,7 @@ import { PageCard, PageCardContent } from "../../../../components/Cards/PageCard
 import Modal from "../../../../components/Modal/modal";
 import StatusBadge from "../../../../components/status/statusbadge";
 import { BILLING_MODE_LABELS } from "../../data/wizardOptions";
+import { getBillingTypeDisplayName } from "../../utils/billingType";
 
 const labelizeStatus = (value) => {
   if (!value) return "";
@@ -276,16 +277,21 @@ export default function ReviewActivateStep({ wizardData, onEditStep }) {
 
   const currency = projectInfo.projectBudgetCurrency || projectInfo.currency || "";
 
-  const isOneTime =
-    billingConfig.billingFrequency === "ONE_TIME" ||
-    billingConfig.fixedPrice?.isOneTime ||
-    billingConfig.billingType === "FIXED_PRICE";
+  const frequencyNameCode = String(
+    billingConfig.billingFrequencyName || billingConfig.billingFrequencyLabel || ""
+  )
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
 
-  const billingTypeLabel =
+  const isOneTime = billingConfig.billingFrequency === "ONE_TIME" || frequencyNameCode === "ONE_TIME";
+
+  const billingTypeLabel = getBillingTypeDisplayName(
     billingConfig.billingTypeName ||
-    billingConfig.billingTypeLabel ||
-    billingConfig.billingType ||
-    "—";
+      billingConfig.billingTypeLabel ||
+      billingConfig.billingType ||
+      "—"
+  );
 
   const billingFrequencyLabel = formatFrequencyLabel(
     billingConfig.billingFrequency,

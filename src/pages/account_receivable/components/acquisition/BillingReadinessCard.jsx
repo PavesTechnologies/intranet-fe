@@ -20,9 +20,6 @@ export default function BillingReadinessCard({
   acquisitionResults,
   onViewPending,
   onRemindPM,
-  onReValidate,
-  onReAcquire,
-  loading = false,
   reminding = false,
 }) {
   if (!config) return null;
@@ -158,42 +155,27 @@ export default function BillingReadinessCard({
         </div>
       )}
 
-      {/* Control Actions */}
-      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
-        {(status === "PARTIALLY_READY" || status === "PENDING_APPROVAL") && (
-          <>
-            <Button variant="outline" size="small" onClick={onViewPending} className="text-xs py-1">
-              <Eye className="h-3 w-3" />
-              View Pending ({pendingCount})
-            </Button>
-
-            <Button
-              variant="primary"
-              size="small"
-              onClick={onRemindPM}
-              disabled={reminding}
-              className="bg-amber-600 hover:bg-amber-700 text-white border-amber-600 text-xs py-1"
-            >
-              <BellRing className={`h-3 w-3 ${reminding ? "animate-spin" : ""}`} />
-              {reminding ? "Sending..." : "Remind PM"}
-            </Button>
-          </>
-        )}
-
-        {status === "READY" && (
-          <Button variant="outline" size="small" onClick={() => onReAcquire(config)} disabled={loading} className="text-xs py-1">
-            <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-            Refresh Snapshot
+      {/* Contextual Actions — approval-chase actions only; acquire/re-validate
+          live as the page-level primary action to avoid duplicate controls */}
+      {(status === "PARTIALLY_READY" || status === "PENDING_APPROVAL") && (
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+          <Button variant="outline" size="small" onClick={onViewPending} className="text-xs py-1">
+            <Eye className="h-3 w-3" />
+            View Pending ({pendingCount})
           </Button>
-        )}
 
-        {(status === "PARTIALLY_READY" || status === "PENDING_APPROVAL") && (
-          <Button variant="outline" size="small" onClick={onReValidate} disabled={loading} className="text-xs py-1">
-            <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-            Re-Validate
+          <Button
+            variant="primary"
+            size="small"
+            onClick={onRemindPM}
+            disabled={reminding}
+            className="bg-amber-600 hover:bg-amber-700 text-white border-amber-600 text-xs py-1"
+          >
+            <BellRing className={`h-3 w-3 ${reminding ? "animate-spin" : ""}`} />
+            {reminding ? "Sending..." : "Remind PM"}
           </Button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

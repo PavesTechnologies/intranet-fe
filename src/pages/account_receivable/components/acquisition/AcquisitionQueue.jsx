@@ -7,6 +7,7 @@ import { PageCard, PageCardContent } from "../../../../components/Cards/PageCard
 import Pagination from "../../../../components/Pagination/pagination";
 import ARTable from "../common/ARTable";
 import { normalizeAcquisitionStatus } from "../../services/billingDataAcquisitionService";
+import { getBillingTypeDisplayName } from "../../utils/billingType";
 
 const BILLING_TYPE_LABELS = {
   TIME_MATERIAL: "Time & Material",
@@ -180,7 +181,7 @@ export default function AcquisitionQueue({
           ),
           billingType: (
             <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-              {BILLING_TYPE_LABELS[cfg.billingType] || cfg.billingType}
+              {BILLING_TYPE_LABELS[cfg.billingType] || getBillingTypeDisplayName(cfg.billingType)}
             </span>
           ),
           billingPeriod: <span className="font-mono text-xs text-slate-600">{cfg.billingPeriod}</span>,

@@ -34,13 +34,52 @@ export const formatApprovalStatusLabel = (value) => {
     .join(" ");
 };
 
+// Every billing type's commercial figures now come back nested under a
+// dedicated key on the BillingConfigurationResponseDto — never at the top
+// level, and never under the old "fixedPrice"/"recurring" nesting the Maker
+// wizard's own draft-normalization uses (see billingConfigurationService.js —
+// that shape is unrelated and must not be assumed here). Fixed Price and
+// Recurring each carry a single details object; Time & Material and
+// Milestone carry a list (one row per rate card / milestone).
+const BILLING_TYPE_DETAILS_KEY = {
+  FIXED_PRICE: "fixedPriceDetails",
+  RECURRING: "recurringDetails",
+  TIME_MATERIAL: "tmRateCards",
+  MILESTONE: "milestoneSchedules",
+};
+
+const resolveBillingTypeDetailsKey = (record = {}) => {
+  const type = String(record.billingTypeName || record.billingType || "").trim().toUpperCase();
+  if (type.includes("FIXED")) return BILLING_TYPE_DETAILS_KEY.FIXED_PRICE;
+  if (type.includes("RECURRING")) return BILLING_TYPE_DETAILS_KEY.RECURRING;
+  if (type.includes("MILESTONE")) return BILLING_TYPE_DETAILS_KEY.MILESTONE;
+  if (type.includes("TIME") || type.includes("MATERIAL") || type.includes("TIMESHEET")) return BILLING_TYPE_DETAILS_KEY.TIME_MATERIAL;
+  return null;
+};
+
+// Picks the correct nested section for this record's billing type and
+// normalizes it to a consistent { key, list, single } shape so callers never
+// have to guess whether it's an object or an array — and never throw on a
+// missing/null section (a draft with no commercial details saved yet, or a
+// billing type not in the map above).
+const resolveBillingDetails = (record = {}) => {
+  const key = resolveBillingTypeDetailsKey(record);
+  const raw = key ? record[key] : null;
+  const list = Array.isArray(raw) ? raw : null;
+  // Fixed Price/Recurring are single objects; Time & Material/Milestone are
+  // lists — scalar reads below use the first (primary) row of a list.
+  const single = list ? list[0] || null : raw && typeof raw === "object" ? raw : null;
+  return { key, list, single: single || null };
+};
+
 // Maps the flat BillingConfigurationResponseDto (billingConfigurationId,
-// clientName, projectName, ..., approvalStatus, billingStatus, ...) onto the
-// shape the approvals list/review screen renders. No nested projectInfo/
-// billingConfig digging — the new DTO is already flat.
+// clientName, projectName, ..., approvalStatus, billingStatus, ...) plus its
+// billing-type-specific nested details section onto the shape the approvals
+// list/review screen renders.
 export const normalizeApprovalConfiguration = (record = {}) => {
   const approvalStatus = String(record.approvalStatus || "").trim().toUpperCase() || "DRAFT";
   const billingStatus = String(record.billingStatus || "").trim().toUpperCase() || "INACTIVE";
+  const { key: billingDetailsKey, list: billingDetailsList, single: billingDetails } = resolveBillingDetails(record);
 
   return {
     ...record,
@@ -72,31 +111,51 @@ export const normalizeApprovalConfiguration = (record = {}) => {
     invoiceGenerationDay: record.invoiceGenerationDay,
     expenseBillingEligible: Boolean(record.expenseBillingEligible),
     rejectionReason: record.rejectionReason || "",
-    effectiveFrom: record.effectiveFrom || record.startDate || "",
-    effectiveTo: record.effectiveTo || record.endDate || "",
+    // Raw nested sections, passed through as-is for any UI that needs the
+    // full shape (e.g. every T&M rate card row, not just the primary one).
+    fixedPriceDetails: record.fixedPriceDetails || null,
+    recurringDetails: record.recurringDetails || null,
+    tmRateCards: record.tmRateCards || null,
+    milestoneSchedules: record.milestoneSchedules || null,
+    // The details section for THIS record's billing type — Fixed Price and
+    // Recurring resolve to fixedPriceDetails/recurringDetails, T&M and
+    // Milestone resolve to the first row of tmRateCards/milestoneSchedules.
+    // null when the type isn't recognized or the section wasn't returned.
+    billingDetailsKey,
+    billingDetailsList,
+    billingDetails,
+    effectiveFrom: firstPresent(billingDetails?.effectiveFrom, record.effectiveFrom, record.startDate) || "",
+    effectiveTo: firstPresent(billingDetails?.effectiveTo, record.effectiveTo, record.endDate) || "",
     hourlyRate: record.hourlyRate ?? "",
-    contractValue: firstPresent(
-      record.contractValue,
-      record.totalContractValue,
-      record.fixedPrice?.totalContractValue,
-      record.recurring?.contractValue
+    // contractValue/pmsProjectBudget/contractValueSource and every commercial
+    // figure below are read from the resolved billingDetails section first —
+    // that's the backend's source of truth — falling back to the legacy flat
+    // fields only when billingDetails is null/missing (e.g. a draft that was
+    // never saved with commercial details).
+    contractValue: firstPresent(billingDetails?.contractValue, record.contractValue, record.totalContractValue),
+    contractValueSource: firstPresent(billingDetails?.contractValueSource, record.contractValueSource),
+    // PMS Project Budget: fixedPriceDetails.pmsProjectBudget first, falling
+    // back to the top-level projectBudget when the details value is null.
+    pmsProjectBudget: firstPresent(billingDetails?.pmsProjectBudget, record.projectBudget, record.pmsProjectBudget),
+    // retentionPercentage is the canonical backend field name — check it first,
+    // falling back to the legacy retentionPercent name for older responses.
+    retentionPercent: firstPresent(
+      billingDetails?.retentionPercentage,
+      billingDetails?.retentionPercent,
+      record.retentionPercentage,
+      record.retentionPercent,
     ),
-    contractValueSource: firstPresent(
-      record.contractValueSource,
-      record.fixedPrice?.contractValueSource,
-      record.recurring?.contractValueSource
+    retentionAmount: firstPresent(billingDetails?.retentionAmount, record.retentionAmount),
+    billableAmount: firstPresent(billingDetails?.billableAmount, record.billableAmount),
+    advanceReceived: firstPresent(billingDetails?.advanceReceived, record.advanceReceived),
+    // remainingReceivable is the canonical backend field name — check it first,
+    // falling back to the legacy remainingAmount name for older responses.
+    remainingAmount: firstPresent(
+      billingDetails?.remainingReceivable,
+      billingDetails?.remainingAmount,
+      record.remainingReceivable,
+      record.remainingAmount,
     ),
-    pmsProjectBudget: firstPresent(
-      record.pmsProjectBudget,
-      record.fixedPrice?.pmsProjectBudget,
-      record.recurring?.pmsProjectBudget,
-      record.projectBudget
-    ),
-    retentionPercent: record.retentionPercent ?? record.fixedPrice?.retentionPercent,
-    retentionAmount: record.retentionAmount ?? record.fixedPrice?.retentionAmount,
-    billableAmount: record.billableAmount ?? record.fixedPrice?.billableAmount,
-    advanceReceived: record.advanceReceived ?? record.fixedPrice?.advanceReceived,
-    remainingAmount: record.remainingAmount ?? record.fixedPrice?.remainingAmount,
     approvalStatus,
     billingStatus,
     createdAt: firstPresent(record.createdAt, record.createdDate) || "",

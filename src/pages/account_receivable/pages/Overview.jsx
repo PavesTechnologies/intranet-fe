@@ -32,6 +32,7 @@ import {
   getApiErrorMessage,
   getBillingConfigurationStats,
 } from "../services/billingConfigService";
+import { getBillingTypeDisplayName } from "../utils/billingType";
 
 // Finance Executive (Maker) view — create/save-draft/edit/submit only.
 // Approve/Reject are Finance Manager (Checker) actions and live entirely in
@@ -201,7 +202,7 @@ export default function Overview() {
             <div className="text-xs text-slate-400">{config.projectCode}</div>
           </div>
         ),
-        billingType: config.billingType,
+        billingType: getBillingTypeDisplayName(config.billingType),
         approvalStatus: <StatusBadge label={config.approvalStatusLabel} size="sm" />,
         billingStatus: <StatusBadge label={config.billingStatusLabel} size="sm" />,
         actions: (
