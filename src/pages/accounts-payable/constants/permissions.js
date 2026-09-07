@@ -4,15 +4,17 @@ import {
   AP_INVOICE_VIEWER_ROLES,
   AP_PAYMENT_ACTION_ROLES,
   AP_PAYMENT_VIEWER_ROLES,
-  AP_PROCUREMENT_ROLES,
   AP_ALL_ROLES,
 } from "./apRoles";
 
 /**
  * Named AP permissions — one per distinct capability in the nav/role matrix from the
- * architecture doc. useApPermissions.js (Phase 3) derives its boolean flags from
- * AP_PERMISSION_ROLES instead of inlining role arrays, so a capability's allowed roles
- * live in exactly one place.
+ * architecture doc. useApPermissions.js derives its boolean flags from AP_PERMISSION_ROLES
+ * instead of inlining role arrays, so a capability's allowed roles live in exactly one place.
+ *
+ * Procurement is NOT here — it's authorized by real UMS JWT permission codes
+ * (PR_VIEW/PR_CREATE/... in constants/procurementPermissions.js) read directly via
+ * hasPermission(), not a frontend role -> permission map. See useApPermissions.js.
  */
 export const AP_PERMISSIONS = {
   VIEW_DASHBOARD: "view_dashboard",
@@ -26,12 +28,6 @@ export const AP_PERMISSIONS = {
   VIEW_INVOICE: "view_invoice",
   MARK_PAID: "mark_paid",
   VIEW_PAYMENT: "view_payment",
-  VIEW_PROCUREMENT: "view_procurement",
-  MANAGE_PR: "manage_pr",
-  APPROVE_PR: "approve_pr",
-  MANAGE_QUOTATION: "manage_quotation",
-  SELECT_VENDOR: "select_vendor",
-  GENERATE_PO: "generate_po",
 };
 
 export const AP_PERMISSION_ROLES = {
@@ -46,12 +42,6 @@ export const AP_PERMISSION_ROLES = {
   [AP_PERMISSIONS.VIEW_INVOICE]: AP_INVOICE_VIEWER_ROLES,
   [AP_PERMISSIONS.MARK_PAID]: AP_PAYMENT_ACTION_ROLES,
   [AP_PERMISSIONS.VIEW_PAYMENT]: AP_PAYMENT_VIEWER_ROLES,
-  [AP_PERMISSIONS.VIEW_PROCUREMENT]: AP_ALL_ROLES,
-  [AP_PERMISSIONS.MANAGE_PR]: AP_PROCUREMENT_ROLES,
-  [AP_PERMISSIONS.APPROVE_PR]: AP_PROCUREMENT_ROLES,
-  [AP_PERMISSIONS.MANAGE_QUOTATION]: AP_PROCUREMENT_ROLES,
-  [AP_PERMISSIONS.SELECT_VENDOR]: AP_PROCUREMENT_ROLES,
-  [AP_PERMISSIONS.GENERATE_PO]: AP_PROCUREMENT_ROLES,
 };
 
 /** @returns {string[]} allowed roles for a permission, or [] if the key is unrecognized. */

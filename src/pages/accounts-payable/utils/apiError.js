@@ -16,6 +16,13 @@ export function getApiErrorMessage(error, fallback = "Something went wrong. Plea
     return detail.map((d) => d.msg).filter(Boolean).join(", ") || fallback;
   }
 
+  // FastAPI's permission_based_access usually sends a string detail (handled above); this is
+  // only a safety net for a 403 with no usable detail, so the user never sees a raw generic
+  // "Something went wrong" for what was actually a permissions problem.
+  if (error?.response?.status === 403) {
+    return "You don't have permission to perform this action.";
+  }
+
   if (typeof error?.message === "string" && error.message && !error.message.startsWith("Request failed")) {
     return error.message;
   }
