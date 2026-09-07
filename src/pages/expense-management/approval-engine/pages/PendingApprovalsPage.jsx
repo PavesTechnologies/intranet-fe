@@ -23,11 +23,11 @@ import { approvalWorkflowApi } from "../api/approvalWorkflowApi";
 
 const merchantSummary = (lineItems) => {
   if (!lineItems?.length) return "—";
-  const first = lineItems[0].merchantName || lineItems[0].categoryName || "Line item";
+  const first = lineItems[0]?.merchantName || lineItems[0]?.categoryName || lineItems[0]?.merchant || lineItems[0]?.category || "Line item";
   return lineItems.length > 1 ? `${first} +${lineItems.length - 1} more` : first;
 };
 
-const hasPolicyIssue = (lineItems) => (lineItems || []).some((l) => l.policyViolations?.length > 0);
+const hasPolicyIssue = (lineItems) => (lineItems || []).some((l) => (l.policyViolations && l.policyViolations.length > 0) || (l.policyWarnings && l.policyWarnings.length > 0));
 
 /**
  * The approver's queue - every report where the caller (or their active delegate) currently has an
@@ -54,9 +54,13 @@ export default function PendingApprovalsPage({ searchTerm = "" }) {
     queries: items.map((item) => ({
       queryKey: ["reportLineItems", item.reportId],
       queryFn: async () => {
-        const res = await lineItemService.getAll(item.reportId);
-        const payload = res.data?.data;
-        return Array.isArray(payload) ? payload : payload?.lineItems || payload?.content || payload?.data || [];
+        try {
+          const res = await lineItemService.getAll(item.reportId);
+          const payload = res.data?.data;
+          return Array.isArray(payload) ? payload : payload?.lineItems || payload?.content || payload?.data || [];
+        } catch {
+          return [];
+        }
       },
       staleTime: 30_000,
     })),
@@ -66,8 +70,12 @@ export default function PendingApprovalsPage({ searchTerm = "" }) {
     queries: items.map((item) => ({
       queryKey: ["reportReviews", item.reportId],
       queryFn: async () => {
-        const res = await approvalWorkflowApi.getLineItemReviews(item.reportId);
-        return res.data?.data || [];
+        try {
+          const res = await approvalWorkflowApi.getLineItemReviews(item.reportId);
+          return res.data?.data || [];
+        } catch {
+          return [];
+        }
       },
       staleTime: 15_000,
     })),
@@ -75,15 +83,18 @@ export default function PendingApprovalsPage({ searchTerm = "" }) {
 
   const resolvedItems = useMemo(() => {
     return items.map((item, idx) => {
-      const allLines = lineItemsQueries[idx]?.data || [];
+      const queriedLines = lineItemsQueries[idx]?.data;
+      const backendLines = item.pendingLineItems || item.lineItems || item.items || item.pendingLines || [];
+      const allLines = (queriedLines && queriedLines.length > 0) ? queriedLines : backendLines;
       const reportReviews = reviewsQueries[idx]?.data || [];
 
-      // A line is pending if it has no review at the current level, or the review status is "PENDING"
-      // or not "APPROVED" / "NEEDS_CORRECTION".
+      const currentLevel = item.levelOrder ?? item.currentLevelOrder;
+
       const pendingLineItems = allLines.filter((line) => {
         const lineReviews = reportReviews.filter((r) => r.lineItemId === line.lineItemId);
+        if (!lineReviews.length) return true;
         const currentLevelReview = lineReviews.find(
-          (r) => r.levelOrder === item.levelOrder || r.levelOrder === item.currentLevelOrder
+          (r) => (currentLevel != null ? r.levelOrder === currentLevel : true)
         );
         if (!currentLevelReview) return true;
         return (
@@ -92,20 +103,33 @@ export default function PendingApprovalsPage({ searchTerm = "" }) {
         );
       });
 
+      const finalPendingLines = pendingLineItems.length > 0 ? pendingLineItems : allLines;
+
       return {
         ...item,
-        pendingLineItems,
+        pendingLineItems: finalPendingLines,
+        levelOrder: item.levelOrder ?? item.currentLevelOrder ?? 1,
       };
     });
   }, [items, lineItemsQueries, reviewsQueries]);
 
-  const filteredItems = resolvedItems.filter((item) => {
-    if (!searchTerm) return true;
-    const q = searchTerm.toLowerCase();
-    const reportNum = (item.reportNumber || "").toLowerCase();
-    const merchant = merchantSummary(item.pendingLineItems).toLowerCase();
-    return reportNum.includes(q) || merchant.includes(q);
-  });
+  const filteredItems = useMemo(() => {
+    const filtered = resolvedItems.filter((item) => {
+      if (!searchTerm) return true;
+      const q = searchTerm.toLowerCase();
+      const reportNum = (item.reportNumber || "").toLowerCase();
+      const merchant = merchantSummary(item.pendingLineItems).toLowerCase();
+      return reportNum.includes(q) || merchant.includes(q);
+    });
+
+    return filtered.sort((a, b) => {
+      const dateA = a.submittedAt || a.createdAt || a.approvedAt || a.submittedDate || a.expenseDate || a.date;
+      const dateB = b.submittedAt || b.createdAt || b.approvedAt || b.submittedDate || b.expenseDate || b.date;
+      const timeA = dateA ? new Date(dateA).getTime() : 0;
+      const timeB = dateB ? new Date(dateB).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [resolvedItems, searchTerm]);
   const isMutating = reviewLineItem.isPending || rejectReport.isPending || bulkApprove.isPending;
 
   const handleApproveLine = (reportId, lineItemId) => {
@@ -178,17 +202,15 @@ export default function PendingApprovalsPage({ searchTerm = "" }) {
         </div>
       )}
 
-      {!isLoading && !isError && filteredItems.length === 0 && (
+      {!isLoading && !isError && items.length === 0 && (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white py-16 text-center">
           <Inbox className="h-8 w-8 text-gray-300" />
-          <p className="text-sm font-medium text-gray-600">
-            {searchTerm ? "No approvals match the search criteria." : "Nothing waiting on you right now."}
-          </p>
-          {!searchTerm && <p className="text-xs text-gray-400">Reports assigned to you for approval will show up here.</p>}
+          <p className="text-sm font-medium text-gray-600">Nothing waiting on you right now.</p>
+          <p className="text-xs text-gray-400">Reports assigned to you for approval will show up here.</p>
         </div>
       )}
 
-      {filteredItems.length > 0 && (
+      {items.length > 0 && (
         <>
           {/* Desktop / tablet table */}
           <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">

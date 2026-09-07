@@ -13,7 +13,7 @@ import { apPaymentApi } from "@/pages/accounts-payable/services/apPaymentApi";
 export const AP_QUEUE_KEY = (page, size) => ["apPaymentQueue", page, size];
 export const AP_DETAILS_KEY = (reportId) => ["apPaymentDetails", reportId];
 
-const unwrap = (res) => res.data?.data;
+const unwrap = (res) => (res?.data?.data !== undefined ? res.data.data : res?.data);
 
 /** PageResponse<ApPaymentQueueItemResponse> - reportStatus=APPROVED AND paymentRoutingStatus=APPROVED_FOR_PAYMENT, enforced server-side. */
 export const useApPaymentQueue = (page = 0, size = 20) =>

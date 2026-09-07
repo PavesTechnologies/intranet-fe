@@ -956,6 +956,7 @@ export default function ExpenseReportDetailPage() {
                       loadingText="Submitting..."
                       onClick={handleSubmitOrResubmit}
                       disabled={report.reportStatus !== "DRAFT" || lineItems.length === 0 || isLifecycleBusy}
+                      className={lineItems.length === 0 ? "!pointer-events-auto cursor-not-allowed" : ""}
                     >
                       Submit for Approval
                     </Button>

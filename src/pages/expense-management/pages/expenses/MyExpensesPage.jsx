@@ -368,9 +368,16 @@ export default function MyExpensesPage() {
   const statusFilterOptions = [
     { label: "All Statuses", value: "" },
     { label: "Draft", value: "DRAFT" },
-    { label: "Submitted", value: "SUBMITTED" },
+    { label: "Pending Approval", value: "PENDING_APPROVAL" },
+    { label: "Pending Finance Verification", value: "PENDING_FINANCE_VERIFICATION" },
+    { label: "Awaiting Correction", value: "AWAITING_CORRECTION" },
+    { label: "Query Raised", value: "QUERY_RAISED" },
     { label: "Approved", value: "APPROVED" },
     { label: "Rejected", value: "REJECTED" },
+    { label: "Cancelled", value: "CANCELLED" },
+    { label: "Policy Rejected", value: "POLICY_REJECTED" },
+    { label: "Reimbursed", value: "REIMBURSED" },
+    { label: "Closed", value: "CLOSED" },
   ];
 
   return (

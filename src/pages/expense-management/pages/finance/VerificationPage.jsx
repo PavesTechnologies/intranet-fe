@@ -20,11 +20,18 @@ import { financeVerificationApi } from "./api/financeVerificationApi";
 
 const merchantSummary = (lineItems) => {
   if (!lineItems?.length) return "—";
-  const first = lineItems[0].merchantName || lineItems[0].categoryName || "Line item";
+  const first = lineItems[0]?.merchantName || lineItems[0]?.categoryName || lineItems[0]?.merchant || lineItems[0]?.category || "Line item";
   return lineItems.length > 1 ? `${first} +${lineItems.length - 1} more` : first;
 };
 
-const hasIneligibleLines = (lineItems) => (lineItems || []).some((l) => !l.eligibleForVerify);
+const isLineEligible = (line) => {
+  if (!line) return false;
+  if (line.eligibleForVerify === false || line.eligible === false || line.isEligible === false) return false;
+  if (line.ineligibleReason && String(line.ineligibleReason).trim().length > 0) return false;
+  return true;
+};
+
+const hasIneligibleLines = (lineItems) => (lineItems || []).some((l) => !isLineEligible(l));
 
 export default function VerificationPage() {
   const [page, setPage] = useState(0);
@@ -66,19 +73,28 @@ export default function VerificationPage() {
 
   const resolvedItems = useMemo(() => {
     return items.map((item, idx) => {
-      const allLines = lineItemsQueries[idx]?.data || [];
+      const queriedLines = lineItemsQueries[idx]?.data;
+      const backendLines = item.pendingLineItems || item.lineItems || item.items || item.pendingLines || [];
+      const baseLines = (queriedLines && queriedLines.length > 0) ? queriedLines : backendLines;
       const reportReviews = reviewsQueries[idx]?.data || [];
 
+      const mergedLines = baseLines.map((line) => {
+        const qi = backendLines.find((b) => b.lineItemId === line.lineItemId) || {};
+        return { ...line, ...qi };
+      });
+
       // A line is pending verification if it has not been verified or queried.
-      const pendingLineItems = allLines.filter((line) => {
+      const pendingLineItems = mergedLines.filter((line) => {
         const lineReviews = reportReviews.filter((r) => r.lineItemId === line.lineItemId);
         const hasVerifiedOrQueried = lineReviews.some((r) => r.status === "VERIFIED" || r.status === "QUERIED");
         return !hasVerifiedOrQueried;
       });
 
+      const finalPending = pendingLineItems.length > 0 ? pendingLineItems : mergedLines;
+
       return {
         ...item,
-        pendingLineItems,
+        pendingLineItems: finalPending,
       };
     });
   }, [items, lineItemsQueries, reviewsQueries]);
@@ -109,28 +125,38 @@ export default function VerificationPage() {
   const totalQueueValue = resolvedItems.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0);
   const firstCurrency = resolvedItems[0]?.currencyCode || "INR";
 
-  // Client-side filtering
-  const filteredItems = resolvedItems.filter((item) => {
-    const reportNumber = (item.reportNumber || "").toLowerCase();
-    const merchant = merchantSummary(item.pendingLineItems).toLowerCase();
-    const empEntry = directory?.get(item.employeeId);
-    const empName = (empEntry?.name || item.employeeId || "").toLowerCase();
+  // Client-side filtering & sorting by date (latest first)
+  const filteredItems = useMemo(() => {
+    const filtered = resolvedItems.filter((item) => {
+      const reportNumber = (item.reportNumber || "").toLowerCase();
+      const merchant = merchantSummary(item.pendingLineItems).toLowerCase();
+      const empEntry = directory?.get(item.employeeId);
+      const empName = (empEntry?.name || item.employeeId || "").toLowerCase();
 
-    const query = searchTerm.toLowerCase();
-    const matchesSearch =
-      !query ||
-      reportNumber.includes(query) ||
-      merchant.includes(query) ||
-      empName.includes(query);
+      const query = searchTerm.toLowerCase();
+      const matchesSearch =
+        !query ||
+        reportNumber.includes(query) ||
+        merchant.includes(query) ||
+        empName.includes(query);
 
-    const hasIneligible = hasIneligibleLines(item.pendingLineItems);
-    const matchesEligibility =
-      !eligibilityFilter ||
-      (eligibilityFilter === "READY" && !hasIneligible) ||
-      (eligibilityFilter === "CONSTRAINTS" && hasIneligible);
+      const hasIneligible = hasIneligibleLines(item.pendingLineItems);
+      const matchesEligibility =
+        !eligibilityFilter ||
+        (eligibilityFilter === "READY" && !hasIneligible) ||
+        (eligibilityFilter === "CONSTRAINTS" && hasIneligible);
 
-    return matchesSearch && matchesEligibility;
-  });
+      return matchesSearch && matchesEligibility;
+    });
+
+    return filtered.sort((a, b) => {
+      const dateA = a.submittedAt || a.createdAt || a.approvedAt || a.submittedDate || a.expenseDate || a.date;
+      const dateB = b.submittedAt || b.createdAt || b.approvedAt || b.submittedDate || b.expenseDate || b.date;
+      const timeA = dateA ? new Date(dateA).getTime() : 0;
+      const timeB = dateB ? new Date(dateB).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [resolvedItems, searchTerm, eligibilityFilter, directory]);
 
   // Handle loading state
   if (isLoading) {

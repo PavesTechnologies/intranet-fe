@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { AlertTriangle, Inbox } from "lucide-react";
 import Breadcrumb from "@/components/Breadcrumb/Breadcrumb";
 import Button from "@/components/Button/Button";
@@ -23,14 +23,24 @@ export default function ApprovalHistoryPage({ outcome, title, breadcrumbLabel, s
   const { data, isLoading, isError, refetch } = useMyHistory(outcome, page, 20);
   const items = data?.content || [];
 
-  const filteredItems = items.filter((report) => {
-    if (!searchTerm) return true;
-    const q = searchTerm.toLowerCase();
-    const reportNum = (report.reportNumber || "").toLowerCase();
-    const titleText = (report.title || "").toLowerCase();
-    const costCenter = (report.costCenterName || "").toLowerCase();
-    return reportNum.includes(q) || titleText.includes(q) || costCenter.includes(q);
-  });
+  const filteredItems = useMemo(() => {
+    const filtered = items.filter((report) => {
+      if (!searchTerm) return true;
+      const q = searchTerm.toLowerCase();
+      const reportNum = (report.reportNumber || "").toLowerCase();
+      const titleText = (report.title || "").toLowerCase();
+      const costCenter = (report.costCenterName || "").toLowerCase();
+      return reportNum.includes(q) || titleText.includes(q) || costCenter.includes(q);
+    });
+
+    return filtered.sort((a, b) => {
+      const dateA = a.submittedAt || a.createdAt || a.approvedAt || a.submittedDate || a.expenseDate || a.date;
+      const dateB = b.submittedAt || b.createdAt || b.approvedAt || b.submittedDate || b.expenseDate || b.date;
+      const timeA = dateA ? new Date(dateA).getTime() : 0;
+      const timeB = dateB ? new Date(dateB).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [items, searchTerm]);
 
   return (
     <div className="p-4 sm:p-6">
