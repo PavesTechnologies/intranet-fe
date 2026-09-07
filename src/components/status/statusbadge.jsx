@@ -138,6 +138,18 @@ const StatusBadge = ({ label, size = "md" }) => {
     textColor = "text-blue-700";
   }
 
+  if (rawUpper === "APPROVED_FOR_PAYMENT" || normalized === "approved for payment" || rawUpper === "NONE") {
+    displayLabel = "Approved for Payment";
+    bgColor = "bg-indigo-100 border border-indigo-200";
+    textColor = "text-indigo-700 font-semibold";
+  }
+
+  if (rawUpper === "PAYMENT_COMPLETED" || normalized === "payment completed") {
+    displayLabel = "Payment Completed";
+    bgColor = "bg-emerald-100 border border-emerald-300";
+    textColor = "text-emerald-800 font-bold";
+  }
+
   if (normalized === "ready for payment") {
     bgColor = "bg-indigo-100";
     textColor = "text-indigo-700";

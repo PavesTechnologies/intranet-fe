@@ -7,7 +7,14 @@ import EmployeeLabel from "../../../approval-engine/components/EmployeeLabel";
 import ApprovalStatusPill from "../../../approval-engine/components/ApprovalStatusPill";
 import { formatMoney, formatDate } from "../../../approval-engine/constants/approvalLabels";
 
-const hasIneligibleLines = (lineItems) => (lineItems || []).some((l) => !l.eligibleForVerify);
+const isLineEligible = (line) => {
+  if (!line) return false;
+  if (line.eligibleForVerify === false || line.eligible === false || line.isEligible === false) return false;
+  if (line.ineligibleReason && String(line.ineligibleReason).trim().length > 0) return false;
+  return true;
+};
+
+const hasIneligibleLines = (lineItems) => (lineItems || []).some((l) => !isLineEligible(l));
 
 /**
  * The Finance Verification queue table - one row per report, "Review" as the only per-row action

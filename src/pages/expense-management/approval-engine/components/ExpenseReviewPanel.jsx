@@ -97,7 +97,7 @@ export default function ExpenseReviewPanel({ isOpen, onClose, reportId, mode, qu
   const reportStatus = historyItem?.reportStatus || fullReport?.reportStatus;
   const isQueueMode = mode === "queue";
 
-  const lineItems = fullLineItems?.length ? fullLineItems : queueItem?.pendingLineItems || [];
+  const lineItems = fullLineItems?.length ? fullLineItems : queueItem?.pendingLineItems || queueItem?.lineItems || queueItem?.items || queueItem?.pendingLines || [];
 
   useEffect(() => {
     if (!isOpen) return;
@@ -143,8 +143,8 @@ export default function ExpenseReviewPanel({ isOpen, onClose, reportId, mode, qu
   const reportNumber = queueItem?.reportNumber || historyItem?.reportNumber || fullReport?.reportNumber;
   const title = historyItem?.title || fullReport?.title;
   const businessPurpose = historyItem?.businessPurpose || fullReport?.businessPurpose;
-  const costCenterName = historyItem?.costCenterName || fullReport?.costCenterName;
-  const submittedAt = historyItem?.createdAt || fullReport?.createdAt;
+  const costCenterName = queueItem?.costCenterName || queueItem?.costCenter || queueItem?.costCenterCode || queueItem?.departmentName || historyItem?.costCenterName || historyItem?.costCenter || fullReport?.costCenterName || fullReport?.costCenter;
+  const submittedAt = queueItem?.submittedAt || queueItem?.createdAt || queueItem?.submittedDate || historyItem?.submittedAt || historyItem?.createdAt || fullReport?.submittedAt || fullReport?.createdAt;
   const totalAmount = queueItem?.totalAmount ?? historyItem?.totalAmount ?? fullReport?.totalAmount;
   const currencyCode = queueItem?.currencyCode || historyItem?.currencyCode || fullReport?.currencyCode;
 

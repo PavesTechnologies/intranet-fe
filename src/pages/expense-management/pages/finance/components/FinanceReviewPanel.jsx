@@ -23,6 +23,13 @@ import CommentPromptModal from "../../../approval-engine/components/CommentPromp
 import { useFinanceStatus, useFinanceReviews, useVerifyLineItem, useQueryLineItem } from "../hooks/useFinanceVerification";
 import { formatMoney, formatDate } from "../../../approval-engine/constants/approvalLabels";
 
+const isLineEligible = (line) => {
+  if (!line) return false;
+  if (line.eligibleForVerify === false || line.eligible === false || line.isEligible === false) return false;
+  if (line.ineligibleReason && String(line.ineligibleReason).trim().length > 0) return false;
+  return true;
+};
+
 const Section = ({ icon, title, children }) => (
   <div className="rounded-xl border border-gray-200 bg-white p-4">
     <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-800">
@@ -124,8 +131,8 @@ export default function FinanceReviewPanel({ isOpen, onClose, reportId, queueIte
   const reportNumber = queueItem?.reportNumber || fullReport?.reportNumber;
   const title = fullReport?.title;
   const businessPurpose = fullReport?.businessPurpose;
-  const costCenterName = queueItem?.costCenterName || fullReport?.costCenterName;
-  const submittedAt = fullReport?.createdAt;
+  const costCenterName = queueItem?.costCenterName || queueItem?.costCenter || queueItem?.costCenterCode || queueItem?.departmentName || fullReport?.costCenterName || fullReport?.costCenter;
+  const submittedAt = queueItem?.submittedAt || queueItem?.createdAt || queueItem?.submittedDate || fullReport?.submittedAt || fullReport?.createdAt;
   const totalAmount = queueItem?.totalAmount ?? fullReport?.totalAmount;
   const currencyCode = queueItem?.currencyCode || fullReport?.currencyCode;
 
@@ -251,7 +258,7 @@ export default function FinanceReviewPanel({ isOpen, onClose, reportId, queueIte
                     </div>
                   )}
 
-                  {!selectedLine.eligibleForVerify && selectedLine.ineligibleReason && (
+                  {!isLineEligible(selectedLine) && selectedLine.ineligibleReason && (
                     <div className="mt-3 border-t border-gray-100 pt-3 flex items-start gap-2 text-sm text-rose-700 font-medium bg-rose-50 p-2.5 rounded-lg border border-rose-200">
                       <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                       <div>
@@ -292,7 +299,7 @@ export default function FinanceReviewPanel({ isOpen, onClose, reportId, queueIte
               </Button>
               <Button
                 variant="success"
-                disabled={isMutating || !selectedLine || !selectedLine.eligibleForVerify}
+                disabled={isMutating || !selectedLine || !isLineEligible(selectedLine)}
                 loading={verifyLineItem.isPending}
                 onClick={handleVerify}
               >

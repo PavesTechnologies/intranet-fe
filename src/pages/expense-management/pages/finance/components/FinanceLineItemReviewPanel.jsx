@@ -6,6 +6,13 @@ import CommentPromptModal from "../../../approval-engine/components/CommentPromp
 const formatMoney = (amount, currencyCode) =>
   amount == null ? "—" : `${currencyCode || ""} ${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
+const isLineEligible = (line) => {
+  if (!line) return false;
+  if (line.eligibleForVerify === false || line.eligible === false || line.isEligible === false) return false;
+  if (line.ineligibleReason && String(line.ineligibleReason).trim().length > 0) return false;
+  return true;
+};
+
 export default function FinanceLineItemReviewPanel({ reportId, lineItems, onVerifyLine, onQueryLine, isBusy }) {
   const [queryingLineItemId, setQueryingLineItemId] = useState(null);
 
@@ -38,7 +45,7 @@ export default function FinanceLineItemReviewPanel({ reportId, lineItems, onVeri
               </div>
               {line.description && <p className="text-sm text-gray-600 mt-0.5">{line.description}</p>}
               
-              {!line.eligibleForVerify && line.ineligibleReason && (
+              {!isLineEligible(line) && line.ineligibleReason && (
                 <div className="mt-2 flex items-start gap-1.5 text-xs text-rose-700 font-medium">
                   <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                   <span>Ineligible for verification: {line.ineligibleReason}</span>
@@ -53,7 +60,7 @@ export default function FinanceLineItemReviewPanel({ reportId, lineItems, onVeri
               <Button
                 size="small"
                 variant="success"
-                disabled={isBusy || !line.eligibleForVerify}
+                disabled={isBusy || !isLineEligible(line)}
                 onClick={() => onVerifyLine(line.lineItemId)}
               >
                 <Check className="h-3.5 w-3.5" /> Verify
