@@ -65,7 +65,10 @@ function openBlob(blob, contentType, mode) {
 export default function RfqDetailPage() {
   const { rfqId } = useParams();
   const navigate = useNavigate();
-  const { canManageQuotation } = useApPermissions();
+  // RFQ workflow (send/close/invite vendors/record a quotation) is all part of the sourcing
+  // decision — intentionally gated by canCreateQuotation (QUOTATION_CREATE), not a PR
+  // permission. There is no dedicated RFQ_* permission in the UMS matrix. See useApPermissions.js.
+  const { canCreateQuotation } = useApPermissions();
 
   const { data: rfq, isLoading, isError, error } = useRfqDetail(rfqId);
   const { data: rfqStatuses = [] } = useRfqStatuses();
@@ -125,10 +128,10 @@ export default function RfqDetailPage() {
   const invitedVendorIds = invitedVendors.map((v) => v.vendor_id);
   const quotationByVendorId = new Map(rfqQuotations.map((q) => [q.vendor_id, q]));
 
-  const canSend = canManageQuotation && statusCode === "DRAFT" && allowedNext.has("SENT") && invitedVendors.length > 0;
-  const canClose = canManageQuotation && allowedNext.has("CLOSED");
-  const canInvite = canManageQuotation && (statusCode === "DRAFT" || statusCode === "SENT");
-  const canAddQuotation = canManageQuotation && statusCode !== "CLOSED" && invitedVendors.length > 0;
+  const canSend = canCreateQuotation && statusCode === "DRAFT" && allowedNext.has("SENT") && invitedVendors.length > 0;
+  const canClose = canCreateQuotation && allowedNext.has("CLOSED");
+  const canInvite = canCreateQuotation && (statusCode === "DRAFT" || statusCode === "SENT");
+  const canAddQuotation = canCreateQuotation && statusCode !== "CLOSED" && invitedVendors.length > 0;
   const backToQuotationTab = pr ? `${AP_ROUTES.PROCUREMENT}?tab=quotation&prId=${pr.id}` : AP_ROUTES.PROCUREMENT;
 
   const handleSend = async () => {

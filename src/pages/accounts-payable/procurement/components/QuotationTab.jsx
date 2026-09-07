@@ -53,7 +53,9 @@ function openBlob(blob, contentType, mode) {
 export default function QuotationTab() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { canManageQuotation } = useApPermissions();
+  // "Create RFQ" / "Add Quotation" are the sourcing decision — intentionally gated by
+  // canCreateQuotation (QUOTATION_CREATE), not a PR permission. See useApPermissions.js.
+  const { canCreateQuotation, canDeleteQuotation } = useApPermissions();
 
   const [selectedPrId, setSelectedPrId] = useState(searchParams.get("prId") || "");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -188,7 +190,7 @@ export default function QuotationTab() {
   const rows = quotations.map((q) => {
     const statusName = quotationStatusNameById.get(q.status_id) || "Unknown";
     const isReceived = quotationStatuses.find((s) => s.status_id === q.status_id)?.status_code === "RECEIVED";
-    const deletable = canManageQuotation && isReceived && prStatusCode === "VENDOR_SELECTION";
+    const deletable = canDeleteQuotation && isReceived && prStatusCode === "VENDOR_SELECTION";
 
     return {
       vendor: vendorNameById.get(q.vendor_id) || `Vendor #${q.vendor_id}`,
@@ -274,7 +276,7 @@ export default function QuotationTab() {
           <div className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <h3 className="text-sm font-semibold text-gray-700">Requests for Quotation (RFQ)</h3>
-              {canManageQuotation && prStatusCode === "APPROVED" && rfqs.length > 0 && (
+              {canCreateQuotation && prStatusCode === "APPROVED" && rfqs.length > 0 && (
                 <Button variant="outline" size="small" onClick={() => setIsRfqCreateOpen(true)} className="whitespace-nowrap">
                   <Plus size={16} />
                   Create Another RFQ
@@ -297,7 +299,7 @@ export default function QuotationTab() {
                     : "This requisition is no longer eligible for a new RFQ."
                 }
                 action={
-                  canManageQuotation && prStatusCode === "APPROVED" ? (
+                  canCreateQuotation && prStatusCode === "APPROVED" ? (
                     <Button variant="primary" onClick={() => setIsRfqCreateOpen(true)}>
                       <Plus size={16} />
                       Create RFQ
@@ -318,7 +320,7 @@ export default function QuotationTab() {
                 <h3 className="text-sm font-semibold text-gray-700">Quotations</h3>
                 <p className="text-xs text-gray-500">Vendor quotations recorded against this requisition, from RFQs or entered manually.</p>
               </div>
-              {canManageQuotation && (
+              {canCreateQuotation && (
                 <Button variant="outline" size="small" onClick={() => setIsCreateOpen(true)} className="whitespace-nowrap">
                   <Plus size={16} />
                   Add Quotation

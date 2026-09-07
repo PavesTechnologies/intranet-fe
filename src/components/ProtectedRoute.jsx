@@ -5,9 +5,21 @@ import { useAuth } from "../contexts/AuthContext";
 // across App.jsx; previously only `roles` was read, so every route declaring
 // `allowedRoles` silently fell through to an authentication-only check with no
 // role enforcement at all.
-export default function ProtectedRoute({ roles = [], allowedRoles = [], children }) {
-  const { isAuthenticated, hasRole } = useAuth();
-  const required = roles.length > 0 ? roles : allowedRoles;
+//
+// Permission-based checks (`permission`, `anyPermissions`, `allPermissions`) are additive —
+// existing role-only routes are unaffected since these default to falsy/empty. A route may
+// combine a role gate with a permission gate (e.g. AP_ALL_ROLES as a coarse module boundary,
+// plus a specific UMS permission for the exact page) — both must pass.
+export default function ProtectedRoute({
+  roles = [],
+  allowedRoles = [],
+  permission,
+  anyPermissions = [],
+  allPermissions = [],
+  children,
+}) {
+  const { isAuthenticated, hasRole, hasPermission, hasAnyPermission, hasAllPermissions } = useAuth();
+  const requiredRoles = roles.length > 0 ? roles : allowedRoles;
 
   // Not logged in → login
   if (!isAuthenticated) {
@@ -15,7 +27,19 @@ export default function ProtectedRoute({ roles = [], allowedRoles = [], children
   }
 
   // Logged in but lacking the role → unauthorized
-  if (required.length > 0 && !hasRole(required)) {
+  if (requiredRoles.length > 0 && !hasRole(requiredRoles)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  if (permission && !hasPermission(permission)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  if (anyPermissions.length > 0 && !hasAnyPermission(anyPermissions)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  if (allPermissions.length > 0 && !hasAllPermissions(allPermissions)) {
     return <Navigate to="/unauthorized" replace />;
   }
 

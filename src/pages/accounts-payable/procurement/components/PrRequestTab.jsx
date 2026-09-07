@@ -24,7 +24,7 @@ const DEFAULT_FILTERS = { departmentId: ALL, purchaseCategoryId: ALL, statusId: 
 
 export default function PrRequestTab() {
   const navigate = useNavigate();
-  const { canManagePR } = useApPermissions();
+  const { canCreatePR } = useApPermissions();
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
@@ -115,7 +115,7 @@ export default function PrRequestTab() {
           </div>
         </div>
 
-        {canManagePR && (
+        {canCreatePR && (
           <Button variant="primary" onClick={() => setIsCreateOpen(true)} className="whitespace-nowrap">
             <Plus size={16} />
             New Requisition
@@ -132,9 +132,9 @@ export default function PrRequestTab() {
       ) : purchaseRequisitions.length === 0 ? (
         <EmptyState
           title="No purchase requisitions found"
-          description={canManagePR ? "Raise a new requisition to get started." : "No requisitions match the current filters."}
+          description={canCreatePR ? "Raise a new requisition to get started." : "No requisitions match the current filters."}
           action={
-            canManagePR ? (
+            canCreatePR ? (
               <Button variant="primary" onClick={() => setIsCreateOpen(true)}>
                 <Plus size={16} />
                 New Requisition

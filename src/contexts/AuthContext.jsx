@@ -156,9 +156,46 @@ export const AuthProvider = ({ children }) => {
     return allowedRoles.some((role) => userRoles.includes(role.toUpperCase()));
   };
 
+  // Permissions are a separate JWT claim from roles — UMS is the source of truth for which
+  // permissions a role maps to, so the frontend never encodes that mapping itself; it only
+  // reads whatever flat permission-code array (e.g. "PR_VIEW", "PR_APPROVE") the token carries.
+  const getUserPermissions = () => {
+    if (!user) return [];
+    const permissions = user.permissions || [];
+    if (!Array.isArray(permissions)) return [];
+    return permissions.map((p) => String(p).toUpperCase());
+  };
+
+  const hasPermission = (permission) => {
+    if (!permission) return true;
+    return getUserPermissions().includes(String(permission).toUpperCase());
+  };
+
+  const hasAnyPermission = (permissions = []) => {
+    if (!permissions || permissions.length === 0) return true;
+    const userPermissions = getUserPermissions();
+    return permissions.some((p) => userPermissions.includes(String(p).toUpperCase()));
+  };
+
+  const hasAllPermissions = (permissions = []) => {
+    if (!permissions || permissions.length === 0) return true;
+    const userPermissions = getUserPermissions();
+    return permissions.every((p) => userPermissions.includes(String(p).toUpperCase()));
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated, login, logout, isfirsttlogin, hasRole }}
+      value={{
+        user,
+        isAuthenticated,
+        login,
+        logout,
+        isfirsttlogin,
+        hasRole,
+        hasPermission,
+        hasAnyPermission,
+        hasAllPermissions,
+      }}
     >
       {children}
     </AuthContext.Provider>
