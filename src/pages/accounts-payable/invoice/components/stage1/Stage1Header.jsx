@@ -2,8 +2,13 @@ import { Info } from "lucide-react";
 import { VALIDATION_STAGES } from "../InvoiceProcessingPipeline";
 
 const STEP_LABELS = { extraction: "Extraction", vendor: "Vendor", buyer: "Buyer", gst: "GST Tax" };
-const TAB_TITLES = { vendor: "Vendor Validation", buyer: "Buyer Validation", gst: "GST Tax Validation" };
-const TAB_NOUNS = { vendor: "vendor", buyer: "buyer", gst: "GST tax" };
+const TAB_TITLES = {
+  extraction: "Extraction Validation",
+  vendor: "Vendor Validation",
+  buyer: "Buyer Validation",
+  gst: "GST Tax Validation",
+};
+const TAB_NOUNS = { extraction: "amount", vendor: "vendor", buyer: "buyer", gst: "GST tax" };
 
 const STATUS_TEXT = { SUCCESS: "Completed", RUNNING: "In Progress", FAILED: "Failed", SKIPPED: "Skipped", WAITING: "Waiting" };
 
@@ -20,9 +25,11 @@ const STATUS_COLOR = {
  * is active) and the four-stage numbered stepper on the right, driven entirely by
  * `pipeline.validation.stages` — the same backend stage data InvoiceProcessingPipeline already
  * renders, just reused here in the horizontal numbered layout the target design calls for. The
- * "Extraction" step is informational only (there's no Stage 1 panel for it); Vendor/Buyer/GST
- * Tax double as the tab switcher when `onSelectStage` is provided, disabled while WAITING so users
- * can't jump ahead of backend progress.
+ * "Extraction" is switchable only once it's FAILED (ExtractionAmountsPanel lets the user correct
+ * the amount fields that failed reconciliation) — it stays informational-only otherwise, since
+ * there's no panel for a passing extraction stage. Vendor/Buyer/GST Tax double as the tab switcher
+ * when `onSelectStage` is provided, disabled while WAITING so users can't jump ahead of backend
+ * progress.
  */
 export default function Stage1Header({ stages, activeTab, onSelectStage }) {
   return (
@@ -49,7 +56,7 @@ export default function Stage1Header({ stages, activeTab, onSelectStage }) {
         {VALIDATION_STAGES.map((stage, index) => {
           const status = stages?.[stage.key]?.status || "WAITING";
           const colors = STATUS_COLOR[status] || STATUS_COLOR.WAITING;
-          const isSwitchable = onSelectStage && stage.key !== "extraction";
+          const isSwitchable = onSelectStage && (stage.key !== "extraction" || status === "FAILED");
           const disabled = isSwitchable && status === "WAITING";
           const isActive = stage.key === activeTab;
 

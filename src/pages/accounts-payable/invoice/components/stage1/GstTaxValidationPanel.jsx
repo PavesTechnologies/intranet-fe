@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { AlertTriangle, CheckCircle2, X, XCircle } from "lucide-react";
-import Button from "../../../../../components/Button/Button";
 import FieldComparisonTable from "./FieldComparisonTable";
 import FieldStatusBadge from "./FieldStatusBadge";
 import TaxCorrectionModal from "./TaxCorrectionModal";
 import AmountsCorrectionModal from "./AmountsCorrectionModal";
+import EditableFieldForm from "./EditableFieldForm";
 import { buildRawFieldKey, getFieldConfidence, getFieldLocation } from "../../utils/fieldLocation";
 import { buildGstCalculationCards, buildTaxRuleFlow, formatGstFieldLabel } from "../../utils/gstPresentation";
 
@@ -16,6 +16,18 @@ const BANNER_TONE = {
   red: { className: "border-red-200 bg-red-50 text-red-800", Icon: XCircle },
   gray: { className: "border-gray-200 bg-gray-50 text-gray-700", Icon: AlertTriangle },
 };
+
+function buildEditableField(field, source, extraction) {
+  const rawKey = buildRawFieldKey("gst", field);
+  return {
+    name: field,
+    label: formatGstFieldLabel(field),
+    value: source?.[field],
+    type: AMOUNT_FIELD_NAMES.has(field) ? "number" : "text",
+    rawKey,
+    hasLocation: Boolean(getFieldLocation(extraction, rawKey)),
+  };
+}
 
 function resolveGstBanner(stageState) {
   if (!stageState || stageState.status === "WAITING") return null;
@@ -30,6 +42,11 @@ function resolveGstBanner(stageState) {
  * Fields Verification + Calculation Verification + Tax Rule Validation, all derived from
  * `stages.gst.field_comparisons` (see utils/gstPresentation.js — pure re-formatting, no new
  * validation logic; every MATCH/MISMATCH verdict comes straight from the backend comparison).
+ *
+ * When GST validation never ran (SKIPPED because an earlier stage failed, or still WAITING)
+ * there are no field_comparisons and nothing to show a verdict for — that case renders two
+ * plain editable forms (Tax Details, Amounts) instead, with no confidence scores or match/
+ * mismatch badges.
  */
 export default function GstTaxValidationPanel({
   extractedInvoice,
@@ -46,6 +63,40 @@ export default function GstTaxValidationPanel({
   const [lastCorrection, setLastCorrection] = useState(null);
 
   const comparisons = stageState?.field_comparisons || [];
+
+  if (comparisons.length === 0) {
+    const handleFieldFocus = (rawKey) => onFieldSelect(rawKey, rawKey ? getFieldLocation(extraction, rawKey) : null);
+    const taxFields = Array.from(TAX_FIELD_NAMES).map((field) => buildEditableField(field, extractedInvoice?.tax, extraction));
+    const amountFields = Array.from(AMOUNT_FIELD_NAMES).map((field) => buildEditableField(field, extractedInvoice?.amounts, extraction));
+
+    return (
+      <div className="space-y-6">
+        <p className="text-sm text-gray-500">
+          Correct any tax or amount field below, then save to re-run validation against the corrected values.
+        </p>
+        <div>
+          <h3 className="mb-2 text-sm font-semibold text-gray-800">Tax Details</h3>
+          <EditableFieldForm
+            fields={taxFields}
+            onFieldFocus={handleFieldFocus}
+            onSave={(patch) => taxCorrectionMutation.mutateAsync({ extractionId, patch })}
+            onSaved={(response) => onCorrected("tax", response.updated, response.corrections || [])}
+            saveLabel="Save Tax Details"
+          />
+        </div>
+        <div>
+          <h3 className="mb-2 text-sm font-semibold text-gray-800">Amounts</h3>
+          <EditableFieldForm
+            fields={amountFields}
+            onFieldFocus={handleFieldFocus}
+            onSave={(patch) => amountsCorrectionMutation.mutateAsync({ extractionId, patch })}
+            onSaved={(response) => onCorrected("amounts", response.updated, response.corrections || [])}
+            saveLabel="Save Amounts"
+          />
+        </div>
+      </div>
+    );
+  }
 
   const rows = comparisons.map((comparison) => {
     const rawKey = buildRawFieldKey("gst", comparison.field);

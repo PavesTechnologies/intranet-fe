@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import Button from "../../../../../components/Button/Button";
 import FieldComparisonTable from "./FieldComparisonTable";
 import FieldStatusLegend from "./FieldStatusLegend";
+import EditableFieldForm from "./EditableFieldForm";
 import { buildRawFieldKey, getFieldConfidence, getFieldLocation } from "../../utils/fieldLocation";
 import { getApiErrorMessage } from "../../../utils/apiError";
 
@@ -15,14 +16,21 @@ const FIELD_LABELS = {
   pan: "PAN",
   address: "Address",
   state: "State",
+  state_code: "State Code",
 };
 
 /**
  * Vendor and Buyer validation share the same comparison fields, correction request shape, and
- * layout — one panel serves both (see `section`). Selecting a field shows it in the "Field Change"
- * editor below the table; submitting there sends just that one field as a sparse PATCH (the
- * backend only records a correction for fields actually present in the request body), then
- * triggers revalidation via `onCorrected`.
+ * layout — one panel serves both (see `section`).
+ *
+ * Two distinct UIs depending on whether this stage actually ran:
+ *  - It ran and produced field_comparisons -> the real match/mismatch comparison table, with a
+ *    row selected to reveal a Before/After editor below (unchanged, existing behavior).
+ *  - It was SKIPPED/never ran -> nothing to compare against yet, so this is just a plain editable
+ *    form of the extracted fields (no confidence scores or match/mismatch badges — there's no
+ *    verdict to show). Which branch renders can change across re-renders (e.g. once the user
+ *    corrects Extraction and revalidation actually runs this stage), so every hook below is
+ *    called unconditionally regardless of which branch ultimately renders.
  */
 export default function PartyValidationPanel({
   section,
@@ -38,39 +46,24 @@ export default function PartyValidationPanel({
   selectedRowRef,
 }) {
   const comparisons = stageState?.field_comparisons || [];
-  const comparedFields = new Set(comparisons.map((c) => c.field));
+  const hasComparisons = comparisons.length > 0;
 
-  const rows = comparisons.map((comparison) => {
-    const rawKey = buildRawFieldKey(section, comparison.field);
-    return {
-      key: comparison.field,
-      field: comparison.field,
-      rawKey,
-      label: FIELD_LABELS[comparison.field] || comparison.field,
-      extractedValue: comparison.extracted_value,
-      masterValue: comparison.master_value,
-      status: comparison.status,
-      confidence: getFieldConfidence(extraction, rawKey),
-      hasLocation: Boolean(getFieldLocation(extraction, rawKey)),
-    };
-  });
-
-  // state_code isn't part of vendor/buyer validation but is part of the correction contract —
-  // shown honestly as NOT_COMPARED rather than fabricating a match verdict for it.
-  if (!comparedFields.has("state_code") && extractedParty?.state_code) {
-    const rawKey = buildRawFieldKey(section, "state_code");
-    rows.push({
-      key: "state_code",
-      field: "state_code",
-      rawKey,
-      label: "State Code",
-      extractedValue: extractedParty.state_code,
-      masterValue: null,
-      status: "NOT_COMPARED",
-      confidence: getFieldConfidence(extraction, rawKey),
-      hasLocation: Boolean(getFieldLocation(extraction, rawKey)),
-    });
-  }
+  const rows = hasComparisons
+    ? comparisons.map((comparison) => {
+        const rawKey = buildRawFieldKey(section, comparison.field);
+        return {
+          key: comparison.field,
+          field: comparison.field,
+          rawKey,
+          label: FIELD_LABELS[comparison.field] || comparison.field,
+          extractedValue: comparison.extracted_value,
+          masterValue: comparison.master_value,
+          status: comparison.status,
+          confidence: getFieldConfidence(extraction, rawKey),
+          hasLocation: Boolean(getFieldLocation(extraction, rawKey)),
+        };
+      })
+    : [];
 
   const selectedRow = rows.find((r) => r.rawKey === selectedFieldKey);
 
@@ -99,6 +92,36 @@ export default function PartyValidationPanel({
       setSubmitting(false);
     }
   };
+
+  if (!hasComparisons) {
+    const fields = Object.keys(FIELD_LABELS)
+      .filter((field) => field !== "state_code" || extractedParty?.state_code != null)
+      .map((field) => {
+        const rawKey = buildRawFieldKey(section, field);
+        return {
+          name: field,
+          label: FIELD_LABELS[field],
+          value: extractedParty?.[field],
+          rawKey,
+          hasLocation: Boolean(getFieldLocation(extraction, rawKey)),
+        };
+      });
+
+    return (
+      <div>
+        <p className="mb-3 text-sm text-gray-500">
+          Correct any {title.toLowerCase()} field below, then save to re-run validation against the corrected values.
+        </p>
+        <EditableFieldForm
+          fields={fields}
+          onFieldFocus={(rawKey) => onFieldSelect(rawKey, rawKey ? getFieldLocation(extraction, rawKey) : null)}
+          onSave={(patch) => correctionMutation.mutateAsync({ extractionId, patch })}
+          onSaved={(response) => onCorrected(section, response.updated, response.corrections || [])}
+          saveLabel={`Save ${title}`}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
