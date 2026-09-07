@@ -8,8 +8,7 @@ import TaxTypesTab from "../components/TaxTypesTab";
 import TaxRulesTab from "../components/TaxRulesTab";
 import ApprovalRulesTab from "../components/ApprovalRulesTab";
 import PaymentTermsTab from "../components/PaymentTermsTab";
-import DepartmentTab from "../components/DepartmentTab";
-import PurchaseCategoryTab from "../components/PurchaseCategoryTab";
+import DepartmentsAndCategoriesTab from "../components/DepartmentsAndCategoriesTab";
 
 const TABS = [
   { id: "general", label: "General Configuration" },
@@ -20,8 +19,7 @@ const TABS = [
   { id: "approvalRules", label: "Approval Rules" },
   { id: "paymentTerms", label: "Payment Terms" },
   { id: "status", label: "Status Master" },
-  { id: "department", label: "Department" },
-  { id: "purchaseCategory", label: "Purchase Category" },
+  { id: "departmentsAndCategories", label: "Departments & Categories" },
 ];
 
 export default function SystemConfigurationPage() {
@@ -60,8 +58,7 @@ export default function SystemConfigurationPage() {
         {activeTab === "taxRules" && <TaxRulesTab />}
         {activeTab === "approvalRules" && <ApprovalRulesTab />}
         {activeTab === "paymentTerms" && <PaymentTermsTab />}
-        {activeTab === "department" && <DepartmentTab />}
-        {activeTab === "purchaseCategory" && <PurchaseCategoryTab />}
+        {activeTab === "departmentsAndCategories" && <DepartmentsAndCategoriesTab />}
       </div>
     </div>
   );

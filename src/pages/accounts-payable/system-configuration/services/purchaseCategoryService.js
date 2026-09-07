@@ -12,8 +12,16 @@ const authHeaders = () => ({
  * Backend/API_Layer/routes/master_purchase_category_route.py.
  */
 export const purchaseCategoryService = {
-  getPurchaseCategories: async () => {
-    const res = await api.get(`${BASE}/master/purchase-categories`, { headers: authHeaders() });
+  /**
+   * @param {{departmentId?: number}} [filters] - department_id is an existing, optional
+   *   server-side filter on this endpoint (verified against the live OpenAPI schema); omitted
+   *   entirely it behaves exactly as before and returns every category.
+   */
+  getPurchaseCategories: async ({ departmentId } = {}) => {
+    const res = await api.get(`${BASE}/master/purchase-categories`, {
+      params: { department_id: departmentId || undefined },
+      headers: authHeaders(),
+    });
     return res.data;
   },
 
