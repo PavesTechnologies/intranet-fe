@@ -12,7 +12,7 @@ import {
   useCreateInvoiceMutation,
 } from "../hooks/useInvoiceMutations";
 import { useInvoiceValidationProgress, isValidationTerminal } from "../hooks/useInvoiceValidationProgress";
-import InvoiceProcessingPipeline from "../components/InvoiceProcessingPipeline";
+import InvoiceProcessingPipeline, { VALIDATION_STAGES } from "../components/InvoiceProcessingPipeline";
 import Stage1ReviewSection from "../components/stage1/Stage1ReviewSection";
 import { AP_ROUTES } from "../../constants/routes";
 import { getApiErrorMessage } from "../../utils/apiError";
@@ -72,6 +72,29 @@ function clearStoredValidationJob() {
   }
 }
 
+/**
+ * Names the first failed stage (in pipeline order) and its issue for the failure toast — the
+ * panel already lists every stage's issues in full, so this only needs to be a pointer, not a
+ * duplicate of the whole detail. Falls back to the job's top-level issues if no single stage was
+ * marked FAILED (e.g. a global engine-level failure with current_stage: null).
+ */
+function describeValidationFailure(data) {
+  const stages = data?.stages || {};
+  const failedStage = VALIDATION_STAGES.find((stage) => stages[stage.key]?.status === "FAILED");
+  const issues = (failedStage ? stages[failedStage.key]?.issues : null) || data?.issues || [];
+  const stageLabel = failedStage?.label;
+
+  if (issues.length === 0) {
+    return stageLabel ? `${stageLabel} failed.` : "Invoice validation failed.";
+  }
+
+  const detail =
+    issues.length > 1
+      ? `${issues[0]} (+${issues.length - 1} more issue${issues.length > 2 ? "s" : ""})`
+      : issues[0];
+  return stageLabel ? `${stageLabel} failed: ${detail}` : detail;
+}
+
 /** True while a submission is in flight and the upload form should stay hidden/disabled. */
 function isPipelineActive(pipeline) {
   if (!pipeline) return false;
@@ -89,6 +112,9 @@ export default function InvoiceUploadPage() {
   const [validationError, setValidationError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [pipeline, setPipeline] = useState(null);
+  // Guards against toasting the same job's failure more than once (polling stops once terminal,
+  // but effects can still re-run on unrelated re-renders while the same failed data is cached).
+  const failureToastedJobIdRef = useRef(null);
 
   const extractFields = useExtractInvoiceFieldsMutation();
   const validateFields = useValidateInvoiceFieldsMutation();
@@ -148,6 +174,11 @@ export default function InvoiceUploadPage() {
 
       if (isValidationTerminal(data.status)) {
         clearStoredValidationJob();
+      }
+
+      if (data.status === "FAILED" && failureToastedJobIdRef.current !== pipeline.jobId) {
+        failureToastedJobIdRef.current = pipeline.jobId;
+        toast.error(describeValidationFailure(data));
       }
       return;
     }
@@ -297,6 +328,30 @@ export default function InvoiceUploadPage() {
     if (extractionId) handleRevalidate(extractionId);
   };
 
+  /**
+   * Called by InvoiceDetailsPanel (Invoice Number/Date/Due Date/PO Number/Payment Terms/
+   * Currency) — unlike handleFieldCorrected, this never triggers revalidation: none of these
+   * fields has a backend validation stage of its own (extraction/vendor/buyer/gst never look at
+   * them), so there's nothing to re-check and no reason to interrupt the user's current tab with
+   * a fresh validation run.
+   */
+  const handleDetailsCorrected = (section, updatedSection) => {
+    setPipeline((prev) =>
+      prev?.extractionResult
+        ? {
+            ...prev,
+            extractionResult: {
+              ...prev.extractionResult,
+              extracted_invoice: {
+                ...prev.extractionResult.extracted_invoice,
+                [section]: { ...prev.extractionResult.extracted_invoice[section], ...updatedSection },
+              },
+            },
+          }
+        : prev,
+    );
+  };
+
   const handleUpload = async () => {
     if (!selectedFile) {
       setValidationError("Please select a file to upload.");
@@ -378,44 +433,55 @@ export default function InvoiceUploadPage() {
                 fileUrl={fileUrl}
                 originalFilename={pipeline.fileName}
                 onCorrected={handleFieldCorrected}
+                onDetailsCorrected={handleDetailsCorrected}
               />
             )}
 
             {(extractionFailed || validationDone) && (
-              <div className="mt-4 flex justify-end gap-2">
-                {extractionFailed && (
-                  <>
-                    <Button variant="outline" onClick={handleReset}>
-                      Choose a Different File
-                    </Button>
-                    <Button variant="primary" onClick={handleUpload}>
-                      Try Again
-                    </Button>
-                  </>
+              <div className="mt-4">
+                {/* The user can skip resolving any stage — saving is no longer blocked on
+                    pipeline.validation.isValid, only on extractionResult actually being
+                    available. The backend persists the invoice regardless and reports back
+                    whatever status_code reflects its outstanding issues (see createInvoice's
+                    response shape), so this is just an honest heads-up, not a hard gate. */}
+                {validationDone && pipeline.extractionResult && !pipeline.validation?.isValid && (
+                  <p className="mb-2 text-right text-xs text-amber-600">
+                    This invoice has unresolved validation issues — saving now will store it for manual review.
+                  </p>
                 )}
-                {validationDone && (
-                  <>
-                    <Button variant="outline" onClick={handleReset} disabled={createInvoice.isPending}>
-                      Upload Another Invoice
-                    </Button>
-                    <Button
-                      variant="primary"
-                      onClick={handleSaveInvoice}
-                      disabled={!pipeline.extractionResult || !pipeline.validation?.isValid}
-                      loading={createInvoice.isPending}
-                      loadingText="Saving..."
-                      title={
-                        !pipeline.extractionResult
-                          ? "Extracted data isn't available after a refresh — please upload the file again."
-                          : !pipeline.validation?.isValid
-                          ? "Resolve validation issues before saving this invoice."
-                          : undefined
-                      }
-                    >
-                      Save Invoice
-                    </Button>
-                  </>
-                )}
+                <div className="flex justify-end gap-2">
+                  {extractionFailed && (
+                    <>
+                      <Button variant="outline" onClick={handleReset}>
+                        Choose a Different File
+                      </Button>
+                      <Button variant="primary" onClick={handleUpload}>
+                        Try Again
+                      </Button>
+                    </>
+                  )}
+                  {validationDone && (
+                    <>
+                      <Button variant="outline" onClick={handleReset} disabled={createInvoice.isPending}>
+                        Upload Another Invoice
+                      </Button>
+                      <Button
+                        variant="primary"
+                        onClick={handleSaveInvoice}
+                        disabled={!pipeline.extractionResult}
+                        loading={createInvoice.isPending}
+                        loadingText="Saving..."
+                        title={
+                          !pipeline.extractionResult
+                            ? "Extracted data isn't available after a refresh — please upload the file again."
+                            : undefined
+                        }
+                      >
+                        {pipeline.validation?.isValid ? "Save Invoice" : "Save for Manual Review"}
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </>
