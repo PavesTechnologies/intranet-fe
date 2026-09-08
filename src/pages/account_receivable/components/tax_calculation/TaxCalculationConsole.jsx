@@ -24,6 +24,8 @@ import ARTable from "../common/ARTable";
 import {
   fetchActiveBillingConfigurations,
   getBillingSnapshotByPeriod,
+  getAcquiredSnapshotMetadata,
+  formatBillingPeriod,
 } from "../../services/billingDataAcquisitionService";
 import {
   calculateTax,
@@ -61,35 +63,40 @@ export default function TaxCalculationConsole() {
           activeConfigs.map(async (cfg) => {
             if (!cfg.projectId && !cfg.id) return null;
 
-            const pStart = cfg.periodStart || cfg.startDate || "2026-01-01";
-            const pEnd = cfg.periodEnd || cfg.endDate || "2027-01-08";
+            const savedMeta = getAcquiredSnapshotMetadata(cfg.projectId);
+            const snapStart = savedMeta?.billingPeriodStart || null;
+            const snapEnd = savedMeta?.billingPeriodEnd || null;
 
             let existingSnapshot = null;
-            if (cfg.projectId && pStart && pEnd) {
-              existingSnapshot = await getBillingSnapshotByPeriod(cfg.projectId, pStart, pEnd).catch(() => null);
+            if (cfg.projectId && snapStart && snapEnd) {
+              existingSnapshot = await getBillingSnapshotByPeriod(cfg.projectId, snapStart, snapEnd).catch(() => null);
             }
 
             const snapshotId =
               existingSnapshot?.snapshotId ||
+              savedMeta?.snapshotId ||
               cfg.snapshotId ||
-              cfg.id ||
-              `BS-${cfg.projectId || "1"}`;
+              null;
 
             const snapshotNumber =
               existingSnapshot?.snapshotNumber ||
+              savedMeta?.snapshotNumber ||
               cfg.snapshotNumber ||
-              `BS-20260821152502`;
+              null;
 
             let snapshotStatus =
               existingSnapshot?.status ||
+              savedMeta?.status ||
               cfg.billingStatus ||
-              "READY_TO_TAX";
+              (snapshotId ? "READY_TO_TAX" : "NOT_ACQUIRED");
 
             let taxableAmount =
               existingSnapshot?.totalAmount ||
               existingSnapshot?.subtotal ||
+              savedMeta?.totalAmount ||
+              savedMeta?.subtotal ||
               cfg.projectBudget ||
-              44000;
+              0;
 
             let taxRegionName = cfg.taxRegionName || cfg.taxRegionLabel || "India";
 
@@ -114,25 +121,37 @@ export default function TaxCalculationConsole() {
             }
 
             const stUpper = (snapshotStatus || "").toUpperCase();
-            if (stUpper !== "IN_TAX" && stUpper !== "TAX_COMPLETED") {
+            if (snapshotId && stUpper === "READY") {
               snapshotStatus = "READY_TO_TAX";
             }
 
+            const displayPeriod =
+              existingSnapshot?.billingPeriod ||
+              (snapStart && snapEnd ? formatBillingPeriod(snapStart, snapEnd) : cfg.billingPeriod);
+
             return {
-              id: snapshotId,
+              id: snapshotId || `cfg-${cfg.id || cfg.projectId}`,
               snapshotId,
               snapshotNumber,
               client: cfg.client || "Account Management",
               projectName: cfg.projectName || "Website Redesign",
               projectCode: cfg.projectCode || `PRJ-${cfg.projectId || "1"}`,
-              billingPeriod: cfg.billingPeriod || `${pStart} – ${pEnd}`,
-              periodStart: pStart,
-              periodEnd: pEnd,
+              billingPeriod: displayPeriod,
+              periodStart: snapStart || cfg.periodStart,
+              periodEnd: snapEnd || cfg.periodEnd,
               taxRegion: taxRegionName || "India",
               currency: cfg.currency || "USD",
               taxableAmount,
               status: snapshotStatus,
-              config: cfg,
+              config: {
+                ...cfg,
+                snapshotPeriodStart: snapStart,
+                snapshotPeriodEnd: snapEnd,
+                billingPeriod: displayPeriod,
+                snapshotId,
+                snapshotNumber,
+                billingStatus: snapshotStatus,
+              },
             };
           })
         )
@@ -241,61 +260,39 @@ export default function TaxCalculationConsole() {
   }, [relevantSnapshots]);
 
   // Action button handler
-  const handleAction = async (item) => {
-    const st = (item.status || "").toUpperCase();
+  const handleAction = (item) => {
     const snapId = item.snapshotId;
 
     if (!snapId) {
-      showStatusToast("Snapshot ID is missing.", "error");
+      showStatusToast("Billing snapshot information is unavailable. Please refresh the billing data.", "error");
       return;
     }
 
-    // TAX_COMPLETED: Navigate directly, DO NOT call POST
-    if (st === "TAX_COMPLETED") {
-      navigate(`/account-receivable/tax-calculation/${snapId}`, {
-        state: { config: item.config },
-      });
-      return;
-    }
-
-    // IN_TAX: Disabled
-    if (st === "IN_TAX" || calculatingIds[snapId]) {
-      return;
-    }
-
-    // READY_TO_TAX: Execute tax calculation
-    setCalculatingIds((prev) => ({ ...prev, [snapId]: true }));
-    try {
-      const result = await calculateTax(snapId);
-      showStatusToast("Tax calculation completed successfully.", "success");
-      setSnapshots((prev) =>
-        prev.map((s) => (s.snapshotId === snapId ? { ...s, status: "TAX_COMPLETED" } : s))
-      );
-      navigate(`/account-receivable/tax-calculation/${snapId}`, {
-        state: { taxCalculation: result, config: item.config },
-      });
-    } catch (error) {
-      const msg = getTaxCalculationErrorMessage(error);
-      if (msg && msg.toLowerCase().includes("already")) {
-        showStatusToast("Tax calculation has already been completed for this billing snapshot.", "info");
-        setSnapshots((prev) =>
-          prev.map((s) => (s.snapshotId === snapId ? { ...s, status: "TAX_COMPLETED" } : s))
-        );
-        navigate(`/account-receivable/tax-calculation/${snapId}`, {
-          state: { config: item.config },
-        });
-      } else {
-        showStatusToast(msg, "error");
-      }
-    } finally {
-      setCalculatingIds((prev) => ({ ...prev, [snapId]: false }));
-    }
+    // Always navigate to the Tax Calculation detail page where calculation is reviewed and executed
+    navigate(`/account-receivable/tax-calculation/${snapId}`, {
+      state: { config: item.config },
+    });
   };
 
   const renderActionButton = (item) => {
     const st = (item.status || "").toUpperCase();
     const snapId = item.snapshotId;
     const isCalculating = calculatingIds[snapId];
+
+    if (!snapId) {
+      return (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled
+          className="text-xs text-slate-400 bg-slate-50 border-slate-200 cursor-not-allowed"
+          title="Billing snapshot information is unavailable. Please refresh the billing data."
+        >
+          <Calculator className="mr-1.5 h-3.5 w-3.5" />
+          Snapshot Unavailable
+        </Button>
+      );
+    }
 
     if (isCalculating) {
       return (
@@ -421,7 +418,13 @@ export default function TaxCalculationConsole() {
   ];
 
   const tableRows = filteredSnapshots.map((item) => ({
-    onRowClick: () => handleAction(item),
+    onRowClick: () => {
+      if (!item.snapshotId) {
+        showStatusToast("Billing snapshot information is unavailable. Please refresh the billing data.", "error");
+        return;
+      }
+      handleAction(item);
+    },
     client: <span className="font-semibold text-slate-800">{item.client}</span>,
     project: (
       <div className="text-left">
@@ -429,8 +432,10 @@ export default function TaxCalculationConsole() {
         <div className="text-xs font-mono text-slate-400">{item.projectCode}</div>
       </div>
     ),
-    snapshotNumber: (
+    snapshotNumber: item.snapshotNumber ? (
       <span className="font-mono font-semibold text-indigo-700">{item.snapshotNumber}</span>
+    ) : (
+      <span className="text-xs text-slate-400 italic">Not available</span>
     ),
     billingPeriod: <span className="font-medium text-slate-700">{item.billingPeriod}</span>,
     taxRegion: <span className="font-medium text-slate-800">{item.taxRegion}</span>,

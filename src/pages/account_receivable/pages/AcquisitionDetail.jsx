@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Loader2,
   SlidersHorizontal,
+  AlertTriangle,
 } from "lucide-react";
 
 import { PageCard, PageCardContent } from "../../../components/Cards/PageCard";
@@ -25,6 +26,10 @@ import {
   generateInvoiceDraft,
   getBillingSnapshotByPeriod,
   sendProjectManagerReminder,
+  getAcquiredSnapshotMetadata,
+  saveAcquiredSnapshotMetadata,
+  formatBillingPeriod,
+  toIsoDateOnly,
 } from "../services/billingDataAcquisitionService";
 import { calculateTax, getTaxCalculationErrorMessage } from "../services/taxCalculationService";
 
@@ -35,7 +40,7 @@ const QUEUE_PATH = "/account-receivable/billing-data-acquisition";
 
 // Resolves the single primary, state-aware action shown in the page header —
 // avoids ever presenting more than one competing primary call-to-action.
-function getPrimaryAction(status, { acquiring, calculatingTax, onAcquire, onReValidate, onContinueToTax }) {
+function getPrimaryAction(status, { acquiring, calculatingTax, onAcquire, onReValidate, onContinueToTax, hasSnapshotId = true }) {
   switch (status) {
     case "NOT_ACQUIRED":
       return {
@@ -91,12 +96,14 @@ function getPrimaryAction(status, { acquiring, calculatingTax, onAcquire, onReVa
     case "READY_TO_TAX":
     case "READY_FOR_TAX":
       return {
-        label: calculatingTax ? "Calculating Tax..." : "Calculate Tax",
-        icon: calculatingTax ? Loader2 : Calculator,
-        onClick: onContinueToTax,
-        disabled: calculatingTax,
-        spin: calculatingTax,
+        label: "Calculate Tax",
+        icon: Calculator,
+        onClick: hasSnapshotId
+          ? onContinueToTax
+          : () => showStatusToast("Billing snapshot information is unavailable. Please refresh the billing data.", "error"),
+        disabled: !hasSnapshotId,
         variant: "success",
+        className: !hasSnapshotId ? "opacity-50 cursor-not-allowed" : "",
       };
     case "IN_TAX":
       return { label: "Calculating Tax...", icon: Loader2, onClick: null, disabled: true, spin: true, variant: "success" };
@@ -104,9 +111,12 @@ function getPrimaryAction(status, { acquiring, calculatingTax, onAcquire, onReVa
       return {
         label: "View Tax Calculation",
         icon: ArrowRight,
-        onClick: onContinueToTax,
-        disabled: false,
+        onClick: hasSnapshotId
+          ? onContinueToTax
+          : () => showStatusToast("Billing snapshot information is unavailable. Please refresh the billing data.", "error"),
+        disabled: !hasSnapshotId,
         variant: "primary",
+        className: !hasSnapshotId ? "opacity-50 cursor-not-allowed" : "",
       };
     default:
       return null;
@@ -139,45 +149,82 @@ export default function AcquisitionDetail() {
     let isMounted = true;
 
     async function applyExistingSnapshot(targetConfig) {
-      if (
-        (targetConfig.billingStatus === "READY" || targetConfig.billingStatus === "Ready") &&
-        targetConfig.periodStart &&
-        targetConfig.periodEnd
-      ) {
+      const st = String(targetConfig.billingStatus || "").trim().toUpperCase();
+      const shouldLoadExistingSnapshot =
+        Boolean(targetConfig.snapshotId) ||
+        [
+          "READY",
+          "READY_TO_TAX",
+          "READY_FOR_TAX",
+          "TAX_COMPLETED",
+          "IN_TAX",
+        ].includes(st);
+
+      const numericProjId = Number(targetConfig.projectId || targetConfig.id);
+      const savedMeta = getAcquiredSnapshotMetadata(numericProjId);
+
+      // CRITICAL: Determine the actual acquired snapshot period.
+      // Do NOT fall back blindly to targetConfig.periodStart if it is the project configuration period!
+      const effectiveStart =
+        targetConfig.snapshotPeriodStart ||
+        savedMeta?.billingPeriodStart ||
+        targetConfig.existingSnapshot?.billingPeriodStart ||
+        null;
+      const effectiveEnd =
+        targetConfig.snapshotPeriodEnd ||
+        savedMeta?.billingPeriodEnd ||
+        targetConfig.existingSnapshot?.billingPeriodEnd ||
+        null;
+
+      if (shouldLoadExistingSnapshot && effectiveStart && effectiveEnd) {
         try {
           setAcquiring(true);
-          const numericProjId = Number(targetConfig.projectId || targetConfig.id) || 9;
           const snapshotData = await getBillingSnapshotByPeriod(
             numericProjId,
-            targetConfig.periodStart,
-            targetConfig.periodEnd
+            effectiveStart,
+            effectiveEnd
           );
 
-          if (isMounted && snapshotData && snapshotData.laborRecords?.length > 0) {
+          if (isMounted && snapshotData && snapshotData.snapshotId) {
+            const resolvedStatus = snapshotData.status || targetConfig.billingStatus || "READY";
+            const snapStart = snapshotData.billingPeriodStart || effectiveStart;
+            const snapEnd = snapshotData.billingPeriodEnd || effectiveEnd;
+            const snapPeriod = snapshotData.billingPeriod || formatBillingPeriod(snapStart, snapEnd);
+
             setAcquisitionResults({
               labor: {
                 applicable: true,
                 status: "success",
-                records: snapshotData.laborRecords,
-                amount: snapshotData.subtotal,
+                records: snapshotData.laborRecords || [],
+                amount: snapshotData.subtotal ?? snapshotData.totalAmount ?? 0,
                 lastFetchedAt: new Date().toISOString(),
                 snapshotId: snapshotData.snapshotId,
                 snapshotNumber: snapshotData.snapshotNumber,
+                billingPeriodStart: snapStart,
+                billingPeriodEnd: snapEnd,
+                billingPeriod: snapPeriod,
                 readiness: snapshotData.readiness,
               },
               success: true,
-              billingStatus: "READY",
+              billingStatus: resolvedStatus,
             });
             setConfig((prev) =>
               prev
                 ? {
                     ...prev,
-                    billingStatus: "READY",
+                    billingStatus: resolvedStatus,
                     snapshotNumber: snapshotData.snapshotNumber,
                     snapshotId: snapshotData.snapshotId,
+                    billingPeriodStart: snapStart,
+                    billingPeriodEnd: snapEnd,
+                    snapshotPeriodStart: snapStart,
+                    snapshotPeriodEnd: snapEnd,
+                    billingPeriod: snapPeriod,
                   }
                 : prev
             );
+            setPeriodStart(snapStart);
+            setPeriodEnd(snapEnd);
           }
         } catch (err) {
           console.warn("[AcquisitionDetail] Error hydrating existing snapshot:", err);
@@ -195,10 +242,30 @@ export default function AcquisitionDetail() {
             (item) => String(item.projectId || item.id) === String(projectId)
           );
           if (isMounted && match) {
-            setConfig(match);
-            setPeriodStart(match.periodStart || "");
-            setPeriodEnd(match.periodEnd || "");
-            applyExistingSnapshot(match);
+            const savedMeta = getAcquiredSnapshotMetadata(match.projectId);
+            const actualStart = savedMeta?.billingPeriodStart || match.periodStart || "";
+            const actualEnd = savedMeta?.billingPeriodEnd || match.periodEnd || "";
+            const enrichedMatch = {
+              ...match,
+              projectPeriodStart: match.periodStart,
+              projectPeriodEnd: match.periodEnd,
+              ...(savedMeta
+                ? {
+                    snapshotPeriodStart: savedMeta.billingPeriodStart,
+                    snapshotPeriodEnd: savedMeta.billingPeriodEnd,
+                    billingPeriodStart: savedMeta.billingPeriodStart,
+                    billingPeriodEnd: savedMeta.billingPeriodEnd,
+                    billingPeriod: savedMeta.billingPeriod || formatBillingPeriod(savedMeta.billingPeriodStart, savedMeta.billingPeriodEnd),
+                    snapshotId: savedMeta.snapshotId,
+                    snapshotNumber: savedMeta.snapshotNumber,
+                    billingStatus: savedMeta.status || match.billingStatus,
+                  }
+                : {}),
+            };
+            setConfig(enrichedMatch);
+            setPeriodStart(actualStart);
+            setPeriodEnd(actualEnd);
+            applyExistingSnapshot(enrichedMatch);
           } else if (isMounted) {
             showStatusToast("Project configuration not found.", "error");
             navigate(QUEUE_PATH, { replace: true });
@@ -209,8 +276,52 @@ export default function AcquisitionDetail() {
           if (isMounted) setLoadingConfig(false);
         }
       } else {
-        setPeriodStart(config.periodStart || "");
-        setPeriodEnd(config.periodEnd || "");
+        const savedMeta = getAcquiredSnapshotMetadata(config.projectId);
+        const actualStart = config.snapshotPeriodStart || savedMeta?.billingPeriodStart || config.periodStart || "";
+        const actualEnd = config.snapshotPeriodEnd || savedMeta?.billingPeriodEnd || config.periodEnd || "";
+        setPeriodStart(actualStart);
+        setPeriodEnd(actualEnd);
+
+        if (config.existingSnapshot?.snapshotId) {
+          const snap = config.existingSnapshot;
+          const resolvedStatus = snap.status || config.billingStatus || "READY";
+          const snapStart = snap.billingPeriodStart || actualStart;
+          const snapEnd = snap.billingPeriodEnd || actualEnd;
+          const snapPeriod = snap.billingPeriod || formatBillingPeriod(snapStart, snapEnd);
+
+          setAcquisitionResults({
+            labor: {
+              applicable: true,
+              status: "success",
+              records: snap.laborRecords || [],
+              amount: snap.subtotal ?? snap.totalAmount ?? 0,
+              lastFetchedAt: new Date().toISOString(),
+              snapshotId: snap.snapshotId,
+              snapshotNumber: snap.snapshotNumber,
+              billingPeriodStart: snapStart,
+              billingPeriodEnd: snapEnd,
+              billingPeriod: snapPeriod,
+              readiness: snap.readiness,
+            },
+            success: true,
+            billingStatus: resolvedStatus,
+          });
+          setConfig((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  billingStatus: resolvedStatus,
+                  snapshotNumber: snap.snapshotNumber,
+                  snapshotId: snap.snapshotId,
+                  billingPeriodStart: snapStart,
+                  billingPeriodEnd: snapEnd,
+                  snapshotPeriodStart: snapStart,
+                  snapshotPeriodEnd: snapEnd,
+                  billingPeriod: snapPeriod,
+                }
+              : prev
+          );
+        }
         applyExistingSnapshot(config);
         setLoadingConfig(false);
       }
@@ -225,11 +336,11 @@ export default function AcquisitionDetail() {
 
   const handleTriggerAcquire = (cfg) => {
     if (cfg.invoiceGeneration === "MANUAL") {
-      setPeriodStart(cfg.periodStart);
-      setPeriodEnd(cfg.periodEnd);
+      setPeriodStart(cfg.snapshotPeriodStart || cfg.periodStart);
+      setPeriodEnd(cfg.snapshotPeriodEnd || cfg.periodEnd);
       setShowPeriodModal(true);
     } else {
-      executeAcquisition(cfg, cfg.periodStart, cfg.periodEnd);
+      executeAcquisition(cfg, cfg.snapshotPeriodStart || cfg.periodStart, cfg.snapshotPeriodEnd || cfg.periodEnd);
     }
   };
 
@@ -239,27 +350,60 @@ export default function AcquisitionDetail() {
   };
 
   const executeAcquisition = (cfg, start, end) => {
+    const cleanStart = toIsoDateOnly(start);
+    const cleanEnd = toIsoDateOnly(end);
     setAcquiring(true);
     setConfig((prev) => (prev ? { ...prev, billingStatus: "VALIDATING" } : prev));
-    acquireBillingData(cfg, start, end)
+    acquireBillingData(cfg, cleanStart, cleanEnd)
       .then((results) => {
         setAcquisitionResults(results);
         setAcquiring(false);
 
-        if (results?.success && results?.billingStatus === "READY") {
+        if (
+          results?.success &&
+          (results?.billingStatus === "READY" ||
+            results?.billingStatus === "READY_FOR_TAX" ||
+            results?.billingStatus === "TAX_COMPLETED")
+        ) {
           const laborRes = results?.labor;
-          const snapshotNum = laborRes?.snapshotNumber;
+          const snapshotNum = laborRes?.snapshotNumber || results.snapshotNumber;
+          const snapshotId = laborRes?.snapshotId || results.snapshotId;
+          const finalBillingStatus = results.billingStatus || "READY";
+          const finalStart = toIsoDateOnly(laborRes?.billingPeriodStart || results.billingPeriodStart || cleanStart);
+          const finalEnd = toIsoDateOnly(laborRes?.billingPeriodEnd || results.billingPeriodEnd || cleanEnd);
+          const finalPeriod = formatBillingPeriod(finalStart, finalEnd);
+
+          saveAcquiredSnapshotMetadata(cfg.projectId, {
+            projectId: cfg.projectId,
+            billingConfigurationId: cfg.billingConfigurationId,
+            snapshotId,
+            snapshotNumber: snapshotNum,
+            status: finalBillingStatus,
+            billingPeriodStart: finalStart,
+            billingPeriodEnd: finalEnd,
+            billingPeriod: finalPeriod,
+            subtotal: laborRes?.amount || results.subtotal || 0,
+            totalAmount: laborRes?.amount || results.totalAmount || 0,
+          });
 
           setConfig((prev) =>
             prev
               ? {
                   ...prev,
-                  billingStatus: "READY",
+                  billingStatus: finalBillingStatus,
                   snapshotNumber: snapshotNum || prev.snapshotNumber,
-                  snapshotId: laborRes?.snapshotId || prev.snapshotId,
+                  snapshotId: snapshotId || prev.snapshotId,
+                  billingPeriodStart: finalStart,
+                  billingPeriodEnd: finalEnd,
+                  snapshotPeriodStart: finalStart,
+                  snapshotPeriodEnd: finalEnd,
+                  billingPeriod: finalPeriod,
                 }
               : prev
           );
+
+          setPeriodStart(finalStart);
+          setPeriodEnd(finalEnd);
 
           showStatusToast("Billing snapshot acquired successfully. All required timesheets are approved.", "success");
         } else if (results?.billingStatus === "PARTIALLY_READY") {
@@ -365,54 +509,28 @@ export default function AcquisitionDetail() {
   const handleReValidate = () => {
     if (!config) return;
     showStatusToast("Re-validating timesheet approvals...", "info");
-    executeAcquisition(config, periodStart || config.periodStart, periodEnd || config.periodEnd);
+    executeAcquisition(
+      config,
+      periodStart || config.snapshotPeriodStart || config.billingPeriodStart,
+      periodEnd || config.snapshotPeriodEnd || config.billingPeriodEnd
+    );
   };
 
-  const handleContinueToTax = async () => {
-    const snapshotId =
+  const handleContinueToTax = () => {
+    const realSnapshotId =
       config?.snapshotId ||
       acquisitionResults?.labor?.snapshotId ||
-      config?.id ||
-      projectId;
+      null;
 
-    if (!snapshotId) {
-      showStatusToast("Billing snapshot could not be found.", "error");
+    if (!realSnapshotId) {
+      showStatusToast("Billing snapshot information is unavailable. Please refresh the billing data.", "error");
       return;
     }
 
-    const currentStatus = (config?.billingStatus || "").toUpperCase();
-
-    if (currentStatus === "TAX_COMPLETED") {
-      navigate(`/account-receivable/tax-calculation/${snapshotId}`, {
-        state: { config, acquisitionResults },
-      });
-      return;
-    }
-
-    if (currentStatus === "IN_TAX" || calculatingTax) return;
-
-    setCalculatingTax(true);
-    try {
-      const calcResult = await calculateTax(snapshotId);
-      showStatusToast("Tax calculation completed successfully.", "success");
-      setConfig((prev) => (prev ? { ...prev, billingStatus: "TAX_COMPLETED" } : prev));
-      navigate(`/account-receivable/tax-calculation/${snapshotId}`, {
-        state: { taxCalculation: calcResult, config, acquisitionResults },
-      });
-    } catch (error) {
-      const errorMsg = getTaxCalculationErrorMessage(error);
-      if (errorMsg && errorMsg.toLowerCase().includes("already")) {
-        showStatusToast("Tax calculation has already been completed for this billing snapshot.", "info");
-        setConfig((prev) => (prev ? { ...prev, billingStatus: "TAX_COMPLETED" } : prev));
-        navigate(`/account-receivable/tax-calculation/${snapshotId}`, {
-          state: { config, acquisitionResults },
-        });
-      } else {
-        showStatusToast(errorMsg, "error");
-      }
-    } finally {
-      setCalculatingTax(false);
-    }
+    // Navigate to the Tax Calculation page where the user can review and calculate tax
+    navigate(`/account-receivable/tax-calculation/${realSnapshotId}`, {
+      state: { config, acquisitionResults },
+    });
   };
 
   const handleSaveInvoiceDraft = () => {
@@ -533,6 +651,7 @@ export default function AcquisitionDetail() {
     statusUpper === "IN_TAX" ||
     statusUpper === "TAX_COMPLETED";
   const snapshotNumber = isAcquired ? acquisitionResults?.labor?.snapshotNumber || config.snapshotNumber || null : null;
+  const realSnapshotId = config.snapshotId || acquisitionResults?.labor?.snapshotId || null;
 
   const primaryAction = getPrimaryAction(statusUpper, {
     acquiring: acquiring || generating,
@@ -540,6 +659,7 @@ export default function AcquisitionDetail() {
     onAcquire: () => handleTriggerAcquire(config),
     onReValidate: handleReValidate,
     onContinueToTax: handleContinueToTax,
+    hasSnapshotId: Boolean(realSnapshotId),
   });
 
   return (
@@ -577,7 +697,13 @@ export default function AcquisitionDetail() {
             <Button
               variant="outline"
               size="small"
-              onClick={() => executeAcquisition(config, config.periodStart, config.periodEnd)}
+              onClick={() =>
+                executeAcquisition(
+                  config,
+                  config.snapshotPeriodStart || config.billingPeriodStart || periodStart,
+                  config.snapshotPeriodEnd || config.billingPeriodEnd || periodEnd
+                )
+              }
               disabled={acquiring}
               className="text-xs"
             >
@@ -599,6 +725,14 @@ export default function AcquisitionDetail() {
           )}
         </div>
       </div>
+
+      {/* Clear user-facing message when snapshot details are unavailable */}
+      {isAcquired && !realSnapshotId && (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs font-medium text-amber-800">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 text-amber-600" />
+          <span>Billing snapshot information is unavailable. Please refresh the billing data.</span>
+        </div>
+      )}
 
       <SnapshotWorkspace
         config={config}

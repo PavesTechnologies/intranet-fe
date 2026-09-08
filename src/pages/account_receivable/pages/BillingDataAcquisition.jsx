@@ -8,6 +8,9 @@ import { showStatusToast } from "../../../components/toastfy/toast";
 import {
   fetchActiveBillingConfigurations,
   getBillingSnapshotByPeriod,
+  getAcquiredSnapshotMetadata,
+  formatBillingPeriod,
+  toIsoDateOnly,
 } from "../services/billingDataAcquisitionService";
 
 import AcquisitionHeader from "../components/acquisition/AcquisitionHeader";
@@ -46,21 +49,42 @@ export default function BillingDataAcquisition() {
     try {
       const configs = await fetchActiveBillingConfigurations();
 
-      // Batch query existing snapshots for configurations
+      // Batch query existing snapshots using the actual acquired snapshot period
       const updatedConfigs = await Promise.all(
         configs.map(async (cfg) => {
-          if (cfg.projectId && cfg.periodStart && cfg.periodEnd) {
+          if (!cfg.projectId) return cfg;
+
+          // Check if there is an acquired snapshot period for this project
+          const savedMeta = getAcquiredSnapshotMetadata(cfg.projectId);
+          const snapStart = savedMeta?.billingPeriodStart;
+          const snapEnd = savedMeta?.billingPeriodEnd;
+
+          // CRITICAL: Only query by-period if we have the actual acquired snapshot period.
+          // Do NOT call by-period using the project configuration period (cfg.periodStart / cfg.periodEnd).
+          if (snapStart && snapEnd) {
             const existingSnapshot = await getBillingSnapshotByPeriod(
               cfg.projectId,
-              cfg.periodStart,
-              cfg.periodEnd
+              snapStart,
+              snapEnd
             );
-            if (existingSnapshot) {
+            if (existingSnapshot && existingSnapshot.snapshotId) {
+              const effectiveStatus = existingSnapshot.status || savedMeta?.status || cfg.billingStatus || "READY_FOR_TAX";
+              const actualStart = existingSnapshot.billingPeriodStart || snapStart;
+              const actualEnd = existingSnapshot.billingPeriodEnd || snapEnd;
+              const actualPeriod = existingSnapshot.billingPeriod || formatBillingPeriod(actualStart, actualEnd);
+
               return {
                 ...cfg,
-                billingStatus: "READY",
+                projectPeriodStart: cfg.periodStart,
+                projectPeriodEnd: cfg.periodEnd,
+                billingStatus: effectiveStatus,
                 snapshotNumber: existingSnapshot.snapshotNumber,
                 snapshotId: existingSnapshot.snapshotId,
+                snapshotPeriodStart: actualStart,
+                snapshotPeriodEnd: actualEnd,
+                billingPeriodStart: actualStart,
+                billingPeriodEnd: actualEnd,
+                billingPeriod: actualPeriod,
                 existingSnapshot,
               };
             }
