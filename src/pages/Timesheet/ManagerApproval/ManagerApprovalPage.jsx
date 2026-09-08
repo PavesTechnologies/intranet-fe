@@ -28,6 +28,8 @@ const ManagerApprovalPage = () => {
   const {
     month,
     year,
+    startDate: monthStartDate,
+    endDate: monthEndDate,
     label: monthLabel,
     monthKey,
     setMonthKey,
@@ -62,7 +64,8 @@ const ManagerApprovalPage = () => {
   const fetchDashboardData = async () => {
     setLoadingDashboard(true);
     try {
-      const data = await getManagerDashboardData(); // ✅ imported from api.js
+      // Scoped to the selected month so the summary above matches the queue below.
+      const data = await getManagerDashboardData(monthStartDate, monthEndDate);
       setDashboardData(data);
     } catch (error) {
       console.error("Error loading dashboard:", error);
@@ -76,10 +79,11 @@ const ManagerApprovalPage = () => {
     fetchGroupedTimesheets();
   }, [monthKey]);
 
-  // The dashboard summary is not month-scoped, so it must not re-fire on a month switch.
+  // Kept separate from the queue fetch so one failing does not blank the other, but it
+  // follows the same month scope.
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [monthKey]);
 
   // ✅ Apply filters for deeply nested structureimport { useMemo } from "react";
 
@@ -210,6 +214,9 @@ const ManagerApprovalPage = () => {
         loading={loadingDashboard}
         setStatusFilter={setStatusFilter}
         handleScroll={handleScroll}
+        periodLabel={
+          monthKey === monthOptions[0].value ? "Last 15 days" : monthLabel
+        }
       />
       {!loadingDashboard && !dashboardData && (
         <div className="text-center text-red-600 my-4">

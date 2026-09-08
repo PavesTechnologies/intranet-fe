@@ -48,7 +48,8 @@ export default function PrDetailPage() {
   const { prId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { canManagePR, canApprovePR, canGeneratePO } = useApPermissions();
+  const { canEditPR, canSubmitPR, canCancelPR, canApprovePR, canRejectPR, canReturnPR, canGeneratePO } =
+    useApPermissions();
 
   const { data: pr, isLoading, isError, error } = usePurchaseRequisitionDetail(prId);
   const { data: departments = [] } = useDepartments();
@@ -115,10 +116,14 @@ export default function PrDetailPage() {
   const isRequester = pr.created_by != null && user?.user_id != null && String(pr.created_by) === String(user.user_id);
   const canSubmit = isDraft && allowedNext.has("PENDING_APPROVAL") && (pr.purchase_requisition_line || []).length > 0;
   const canCancel = allowedNext.has("CANCELLED");
-  const canReturn = isPendingApproval && canApprovePR && allowedNext.has("RETURNED");
+  const canReturn = isPendingApproval && canReturnPR && allowedNext.has("RETURNED");
   const canResubmit =
-    isReturned && isRequester && allowedNext.has("PENDING_APPROVAL") && (pr.purchase_requisition_line || []).length > 0;
-  const linesEditable = (isDraft || (isReturned && isRequester)) && canManagePR;
+    isReturned &&
+    isRequester &&
+    canSubmitPR &&
+    allowedNext.has("PENDING_APPROVAL") &&
+    (pr.purchase_requisition_line || []).length > 0;
+  const linesEditable = (isDraft || (isReturned && isRequester)) && canEditPR;
   const canGenerate =
     canGeneratePO &&
     statusCode === "VENDOR_SELECTION" &&
@@ -245,7 +250,7 @@ export default function PrDetailPage() {
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <StatusBadge label={statusName} />
             <div className="flex flex-wrap gap-2">
-              {isDraft && canManagePR && (
+              {isDraft && canSubmitPR && (
                 <Button variant="primary" onClick={handleSubmit} loading={submitMutation.isPending} loadingText="Submitting...">
                   Submit for Approval
                 </Button>
@@ -255,7 +260,7 @@ export default function PrDetailPage() {
                   Resubmit
                 </Button>
               )}
-              {canCancel && canManagePR && (
+              {canCancel && canCancelPR && (
                 <Button variant="outline" onClick={() => setCancelOpen(true)}>
                   Cancel Requisition
                 </Button>
@@ -301,19 +306,23 @@ export default function PrDetailPage() {
           <PageCardContent>
             <h3 className="mb-3 text-sm font-semibold text-gray-700">Approval</h3>
 
-            {isPendingApproval && canApprovePR && (
+            {isPendingApproval && (canApprovePR || canRejectPR || canReturnPR) && (
               <div className="mb-4 flex flex-wrap justify-end gap-2">
-                {canReturn && (
+                {canReturn && canReturnPR && (
                   <Button variant="outline" onClick={() => setReturnOpen(true)}>
                     Return for Clarification
                   </Button>
                 )}
-                <Button variant="outline" onClick={() => setRejectOpen(true)}>
-                  Reject
-                </Button>
-                <Button variant="primary" onClick={() => setApproveOpen(true)}>
-                  Approve
-                </Button>
+                {canRejectPR && (
+                  <Button variant="outline" onClick={() => setRejectOpen(true)}>
+                    Reject
+                  </Button>
+                )}
+                {canApprovePR && (
+                  <Button variant="primary" onClick={() => setApproveOpen(true)}>
+                    Approve
+                  </Button>
+                )}
               </div>
             )}
 
