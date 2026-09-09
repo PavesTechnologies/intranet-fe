@@ -103,7 +103,12 @@ export default function TaxCalculationConsole() {
             if (snapshotId && (snapshotStatus === "TAX_COMPLETED" || snapshotStatus === "IN_TAX" || existingSnapshot)) {
               const taxCalcData = await getTaxCalculation(snapshotId).catch(() => null);
               if (taxCalcData) {
-                snapshotStatus = taxCalcData.status || snapshotStatus;
+                const tStatus = (taxCalcData.snapshotStatus || taxCalcData.status || "").toUpperCase();
+                if (tStatus === "CALCULATED" || tStatus === "TAX_COMPLETED" || tStatus === "COMPLETED") {
+                  snapshotStatus = "TAX_COMPLETED";
+                } else if (taxCalcData.status) {
+                  snapshotStatus = taxCalcData.status;
+                }
                 if (taxCalcData.taxableAmount !== null && taxCalcData.taxableAmount !== undefined) {
                   taxableAmount = taxCalcData.taxableAmount;
                 }
@@ -121,8 +126,10 @@ export default function TaxCalculationConsole() {
             }
 
             const stUpper = (snapshotStatus || "").toUpperCase();
-            if (snapshotId && stUpper === "READY") {
-              snapshotStatus = "READY_TO_TAX";
+            if (snapshotId && (stUpper === "READY" || stUpper === "READY_TO_TAX")) {
+              snapshotStatus = "READY_FOR_TAX";
+            } else if (stUpper === "CALCULATED") {
+              snapshotStatus = "TAX_COMPLETED";
             }
 
             const displayPeriod =
@@ -174,7 +181,7 @@ export default function TaxCalculationConsole() {
     loadData();
   }, []);
 
-  // Filter population down to relevant tax snapshot candidates
+  // Filter population down to relevant tax snapshot candidates (persistent workspace)
   const relevantSnapshots = useMemo(() => {
     return snapshots.filter((s) => {
       const st = (s.status || "").toUpperCase();
@@ -183,7 +190,8 @@ export default function TaxCalculationConsole() {
         st === "READY_FOR_TAX" ||
         st === "READY" ||
         st === "IN_TAX" ||
-        st === "TAX_COMPLETED"
+        st === "TAX_COMPLETED" ||
+        st === "CALCULATED"
       );
     });
   }, [snapshots]);
@@ -198,7 +206,7 @@ export default function TaxCalculationConsole() {
       const st = (s.status || "").toUpperCase();
       if (st === "READY_TO_TAX" || st === "READY_FOR_TAX" || st === "READY") readyToTax++;
       else if (st === "IN_TAX") inTax++;
-      else if (st === "TAX_COMPLETED") taxCompleted++;
+      else if (st === "TAX_COMPLETED" || st === "CALCULATED") taxCompleted++;
     });
 
     return {
@@ -220,7 +228,7 @@ export default function TaxCalculationConsole() {
       } else if (statusFilter === "IN_TAX") {
         if (st !== "IN_TAX") return false;
       } else if (statusFilter === "TAX_COMPLETED") {
-        if (st !== "TAX_COMPLETED") return false;
+        if (st !== "TAX_COMPLETED" && st !== "CALCULATED") return false;
       }
 
       // Region filter
@@ -312,7 +320,7 @@ export default function TaxCalculationConsole() {
       );
     }
 
-    if (st === "TAX_COMPLETED") {
+    if (st === "TAX_COMPLETED" || st === "CALCULATED") {
       return (
         <Button
           size="sm"
@@ -324,7 +332,7 @@ export default function TaxCalculationConsole() {
           className="text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-50 font-semibold"
         >
           <Eye className="mr-1.5 h-3.5 w-3.5" />
-          View Calculation
+          View Tax Calculation
         </Button>
       );
     }
@@ -375,7 +383,7 @@ export default function TaxCalculationConsole() {
             </div>
             <div className="space-y-1.5 max-w-md mx-auto">
               <h3 className="text-lg font-bold text-slate-800">
-                No Billing Snapshots Ready for Tax Calculation
+                No Billing Snapshots in Tax Calculation Workspace
               </h3>
               <p className="text-sm text-slate-500">
                 Acquire and validate billing data before starting tax calculation.
@@ -444,7 +452,7 @@ export default function TaxCalculationConsole() {
         {item.currency} {Number(item.taxableAmount || 0).toLocaleString()}
       </span>
     ),
-    status: <StatusBadge label={item.status} size="sm" />,
+    status: <StatusBadge label={item.status === "CALCULATED" ? "TAX_COMPLETED" : item.status} size="sm" />,
     action: renderActionButton(item),
   }));
 

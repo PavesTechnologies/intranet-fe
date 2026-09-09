@@ -310,10 +310,19 @@ export default function TaxCalculation() {
           <Button
             variant="outline"
             size="small"
+            onClick={() => navigate(CONSOLE_PATH)}
+            className="flex items-center gap-1.5 text-xs text-slate-600"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to Tax Workspace
+          </Button>
+
+          <Button
+            variant="outline"
+            size="small"
             onClick={() => navigate("/account-receivable/billing-data-acquisition")}
             className="flex items-center gap-1.5 text-xs text-slate-600"
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to Acquisition
+            Acquisition Detail
           </Button>
 
           {isTaxCompleted ? (

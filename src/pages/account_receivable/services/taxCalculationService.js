@@ -110,7 +110,14 @@ export const normalizeTaxCalculation = (item = {}) => {
     components: rawComponents.map(normalizeTaxComponent),
     totalTaxAmount: item.totalTaxAmount !== undefined && item.totalTaxAmount !== null ? Number(item.totalTaxAmount) : null,
     grandTotal: item.grandTotal !== undefined && item.grandTotal !== null ? Number(item.grandTotal) : null,
-    status: item.status || "TAX_COMPLETED",
+    status:
+      (item.snapshotStatus || "").toUpperCase() === "TAX_COMPLETED" ||
+      (item.status || "").toUpperCase() === "CALCULATED" ||
+      (item.status || "").toUpperCase() === "TAX_COMPLETED" ||
+      (item.status || "").toUpperCase() === "COMPLETED"
+        ? "TAX_COMPLETED"
+        : item.status || "TAX_COMPLETED",
+    calculationStatus: item.status || "CALCULATED",
     calculatedAt: item.calculatedAt || item.calculated_at || "",
   };
 };
