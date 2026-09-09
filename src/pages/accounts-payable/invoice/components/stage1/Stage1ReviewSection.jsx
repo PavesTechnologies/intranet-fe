@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import Stage1Header from "./Stage1Header";
 import InvoiceDetailsPanel from "./InvoiceDetailsPanel";
+import InvoiceAmountsSection from "./InvoiceAmountsSection";
+import InvoiceLineItemsSection from "./InvoiceLineItemsSection";
 import PartyValidationPanel from "./PartyValidationPanel";
 import GstTaxValidationPanel from "./GstTaxValidationPanel";
-import ExtractionAmountsPanel from "./ExtractionAmountsPanel";
 import InvoiceDocumentViewer from "./InvoiceDocumentViewer";
 import FieldDocumentConnector from "./FieldDocumentConnector";
+import { getFieldLocation } from "../../utils/fieldLocation";
 import {
   useCorrectVendorMutation,
   useCorrectBuyerMutation,
@@ -17,11 +19,16 @@ import {
 const TAB_ORDER = ["vendor", "buyer", "gst"];
 
 /**
- * Full-width Stage 1 review workspace: Stage1Header (title + the numbered stepper, which also
- * doubles as the tab switcher) over a two-column layout — field comparisons on the left (~44%),
- * the shared document viewer on the right (~56%). WAITING stages are disabled in the header — the
- * user can review any stage already reached, but never jump ahead. Rendered by InvoiceUploadPage
- * once extraction has produced field data.
+ * Full-width Stage 1 review workspace, rendered by InvoiceUploadPage once extraction has
+ * produced field data. Pipeline status (Stage1Header's stepper) always renders first.
+ *
+ * Two distinct modes below it, matching whether there's anything real to compare against yet:
+ *  - Extraction Validation FAILED: Vendor/Buyer/GST never ran (they're SKIPPED, not WAITING),
+ *    so there's nothing to switch between — this renders one plain form (Invoice Details,
+ *    Amounts, Line Items) instead of a tab switcher. Every field writes straight to local
+ *    pipeline state; there's no per-section save, just the one page-level Save Invoice button.
+ *  - Otherwise: the normal Vendor/Buyer/GST tab switcher with real field-comparison verdicts,
+ *    stepper-driven, unchanged from before.
  *
  * @param {Object} props
  * @param {Object} props.extractedInvoice - pipeline.extractionResult.extracted_invoice
@@ -30,7 +37,8 @@ const TAB_ORDER = ["vendor", "buyer", "gst"];
  * @param {string|null} props.fileUrl - local blob URL of the just-uploaded file, or null
  * @param {string} [props.originalFilename]
  * @param {(section: "vendor"|"buyer"|"tax"|"amounts", updatedSection: Object, corrections: Array) => void} props.onCorrected
- * @param {(section: "document"|"reference"|"payment", updatedSection: Object) => void} props.onDetailsCorrected
+ * @param {(section: string, field: string, value: string) => void} props.onFieldChange
+ * @param {(index: number, field: string, value: string) => void} props.onLineChange
  */
 export default function Stage1ReviewSection({
   extractedInvoice,
@@ -39,7 +47,8 @@ export default function Stage1ReviewSection({
   fileUrl,
   originalFilename,
   onCorrected,
-  onDetailsCorrected,
+  onFieldChange,
+  onLineChange,
 }) {
   const [activeTab, setActiveTab] = useState("vendor");
   const [manualTab, setManualTab] = useState(false);
@@ -56,23 +65,20 @@ export default function Stage1ReviewSection({
   const correctTax = useCorrectTaxMutation();
   const correctAmounts = useCorrectAmountsMutation();
 
+  const extractionFailed = stages?.extraction?.status === "FAILED";
+  const extractionIssues = stages?.extraction?.issues || [];
+
   // Follow validation progress (auto-advance to the furthest-reached stage) until the user
-  // manually picks a stepper item, then stop overriding their choice. A failed Extraction stage
-  // takes priority over the loop below — Vendor/Buyer/GST never actually ran (they're SKIPPED,
-  // not WAITING), so landing there would show three blank panels instead of the one place the
-  // user can actually act: correcting the amount fields that failed reconciliation.
+  // manually picks a stepper item, then stop overriding their choice. No-op while extraction has
+  // failed — there's no tab switcher in that mode.
   useEffect(() => {
-    if (manualTab) return;
-    if (stages?.extraction?.status === "FAILED") {
-      setActiveTab("extraction");
-      return;
-    }
+    if (manualTab || extractionFailed) return;
     let next = "vendor";
     for (const key of TAB_ORDER) {
       if (stages?.[key]?.status && stages[key].status !== "WAITING") next = key;
     }
     setActiveTab(next);
-  }, [stages, manualTab]);
+  }, [stages, manualTab, extractionFailed]);
 
   useEffect(() => {
     if (prevActiveTab.current !== activeTab) {
@@ -87,25 +93,21 @@ export default function Stage1ReviewSection({
     setSelectedLocation(location);
   };
 
+  const handleAmountFieldFocus = (rawKey) =>
+    handleFieldSelect(rawKey, rawKey ? getFieldLocation(extractedInvoice?.extraction, rawKey) : null);
+
   const handleSelectStage = (key) => {
     if (stages?.[key]?.status === "WAITING" || !stages?.[key]?.status) return;
     setManualTab(true);
     setActiveTab(key);
   };
 
-  const showConnector = activeTab === "vendor" || activeTab === "buyer" || activeTab === "extraction";
-  const extractionFailed = stages?.extraction?.status === "FAILED";
-  const extractionIssues = stages?.extraction?.issues || [];
+  const showConnector = !extractionFailed && (activeTab === "vendor" || activeTab === "buyer");
 
   return (
     <div>
-      <InvoiceDetailsPanel extractedInvoice={extractedInvoice} onCorrected={onDetailsCorrected} />
+      <Stage1Header stages={stages} activeTab={extractionFailed ? null : activeTab} onSelectStage={extractionFailed ? undefined : handleSelectStage} />
 
-      <Stage1Header stages={stages} activeTab={activeTab} onSelectStage={handleSelectStage} />
-
-      {/* Vendor/Buyer/GST panels only ever say "Skipped" — this is the one place the actual
-          extraction-validation failure reason is shown, since none of those three tabs has a
-          panel for the "extraction" stage itself. */}
       {extractionFailed && (
         <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4">
           <div className="flex items-start gap-2">
@@ -126,7 +128,8 @@ export default function Stage1ReviewSection({
                 </p>
               )}
               <p className="mt-2 text-xs text-red-600">
-                Vendor, Buyer, and GST Tax validation were skipped because this earlier stage failed.
+                Vendor, Buyer, and GST Tax validation were skipped because this earlier stage failed. Correct the
+                fields below, then use Save Invoice.
               </p>
             </div>
           </div>
@@ -134,59 +137,65 @@ export default function Stage1ReviewSection({
       )}
 
       <div ref={gridRef} className="relative grid grid-cols-1 gap-6 lg:grid-cols-[44%_1fr]">
-        <div>
-          {activeTab === "extraction" && (
-            <ExtractionAmountsPanel
-              extractedInvoice={extractedInvoice}
-              extraction={extractedInvoice?.extraction}
-              onFieldSelect={handleFieldSelect}
-              correctionMutation={correctAmounts}
-              extractionId={extractionId}
-              onCorrected={onCorrected}
-            />
-          )}
-          {activeTab === "vendor" && (
-            <PartyValidationPanel
-              section="vendor"
-              title="Vendor"
-              extractedParty={extractedInvoice?.vendor}
-              stageState={stages?.vendor}
-              extraction={extractedInvoice?.extraction}
-              selectedFieldKey={selectedFieldKey}
-              onFieldSelect={handleFieldSelect}
-              correctionMutation={correctVendor}
-              extractionId={extractionId}
-              onCorrected={onCorrected}
-              selectedRowRef={selectedRowRef}
-            />
-          )}
-          {activeTab === "buyer" && (
-            <PartyValidationPanel
-              section="buyer"
-              title="Buyer"
-              extractedParty={extractedInvoice?.buyer}
-              stageState={stages?.buyer}
-              extraction={extractedInvoice?.extraction}
-              selectedFieldKey={selectedFieldKey}
-              onFieldSelect={handleFieldSelect}
-              correctionMutation={correctBuyer}
-              extractionId={extractionId}
-              onCorrected={onCorrected}
-              selectedRowRef={selectedRowRef}
-            />
-          )}
-          {activeTab === "gst" && (
-            <GstTaxValidationPanel
-              extractedInvoice={extractedInvoice}
-              stageState={stages?.gst}
-              extraction={extractedInvoice?.extraction}
-              selectedFieldKey={selectedFieldKey}
-              onFieldSelect={handleFieldSelect}
-              taxCorrectionMutation={correctTax}
-              amountsCorrectionMutation={correctAmounts}
-              extractionId={extractionId}
-              onCorrected={onCorrected}
-            />
+        <div className="space-y-6">
+          {extractionFailed ? (
+            <>
+              <InvoiceDetailsPanel extractedInvoice={extractedInvoice} onFieldChange={onFieldChange} />
+              <InvoiceAmountsSection
+                extractedInvoice={extractedInvoice}
+                extraction={extractedInvoice?.extraction}
+                onFieldFocus={handleAmountFieldFocus}
+                onFieldChange={onFieldChange}
+              />
+              <InvoiceLineItemsSection lines={extractedInvoice?.invoice_lines} onLineChange={onLineChange} />
+            </>
+          ) : (
+            <>
+              <InvoiceDetailsPanel extractedInvoice={extractedInvoice} onFieldChange={onFieldChange} />
+              {activeTab === "vendor" && (
+                <PartyValidationPanel
+                  section="vendor"
+                  title="Vendor"
+                  extractedParty={extractedInvoice?.vendor}
+                  stageState={stages?.vendor}
+                  extraction={extractedInvoice?.extraction}
+                  selectedFieldKey={selectedFieldKey}
+                  onFieldSelect={handleFieldSelect}
+                  correctionMutation={correctVendor}
+                  extractionId={extractionId}
+                  onCorrected={onCorrected}
+                  selectedRowRef={selectedRowRef}
+                />
+              )}
+              {activeTab === "buyer" && (
+                <PartyValidationPanel
+                  section="buyer"
+                  title="Buyer"
+                  extractedParty={extractedInvoice?.buyer}
+                  stageState={stages?.buyer}
+                  extraction={extractedInvoice?.extraction}
+                  selectedFieldKey={selectedFieldKey}
+                  onFieldSelect={handleFieldSelect}
+                  correctionMutation={correctBuyer}
+                  extractionId={extractionId}
+                  onCorrected={onCorrected}
+                  selectedRowRef={selectedRowRef}
+                />
+              )}
+              {activeTab === "gst" && (
+                <GstTaxValidationPanel
+                  extractedInvoice={extractedInvoice}
+                  stageState={stages?.gst}
+                  extraction={extractedInvoice?.extraction}
+                  selectedFieldKey={selectedFieldKey}
+                  onFieldSelect={handleFieldSelect}
+                  taxCorrectionMutation={correctTax}
+                  amountsCorrectionMutation={correctAmounts}
+                  extractionId={extractionId}
+                  onCorrected={onCorrected}
+                />
+              )}
+            </>
           )}
         </div>
 
@@ -213,3 +222,4 @@ export default function Stage1ReviewSection({
     </div>
   );
 }
+

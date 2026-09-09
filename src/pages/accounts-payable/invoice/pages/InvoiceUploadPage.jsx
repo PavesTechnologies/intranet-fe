@@ -329,13 +329,14 @@ export default function InvoiceUploadPage() {
   };
 
   /**
-   * Called by InvoiceDetailsPanel (Invoice Number/Date/Due Date/PO Number/Payment Terms/
-   * Currency) — unlike handleFieldCorrected, this never triggers revalidation: none of these
-   * fields has a backend validation stage of its own (extraction/vendor/buyer/gst never look at
-   * them), so there's nothing to re-check and no reason to interrupt the user's current tab with
-   * a fresh validation run.
+   * Called by InvoiceDetailsPanel/InvoiceAmountsSection (Invoice Number/Date/Due Date/PO Number/
+   * Payment Terms/Currency/Amounts) on every field change — unlike handleFieldCorrected, this
+   * never triggers revalidation: none of these fields has a backend validation stage or
+   * correction endpoint of its own, so there's nothing to re-check and no reason to interrupt the
+   * user with a fresh validation run mid-edit. The single page-level Save Invoice button sends
+   * whatever ends up in local state.
    */
-  const handleDetailsCorrected = (section, updatedSection) => {
+  const handleFieldChange = (section, field, value) => {
     setPipeline((prev) =>
       prev?.extractionResult
         ? {
@@ -344,12 +345,29 @@ export default function InvoiceUploadPage() {
               ...prev.extractionResult,
               extracted_invoice: {
                 ...prev.extractionResult.extracted_invoice,
-                [section]: { ...prev.extractionResult.extracted_invoice[section], ...updatedSection },
+                [section]: { ...prev.extractionResult.extracted_invoice[section], [field]: value },
               },
             },
           }
         : prev,
     );
+  };
+
+  /** Called by InvoiceLineItemsSection on every cell change — same local-only semantics as
+   * handleFieldChange, just addressing one array entry instead of one section. */
+  const handleLineChange = (index, field, value) => {
+    setPipeline((prev) => {
+      if (!prev?.extractionResult) return prev;
+      const lines = prev.extractionResult.extracted_invoice.invoice_lines || [];
+      const nextLines = lines.map((line, i) => (i === index ? { ...line, [field]: value } : line));
+      return {
+        ...prev,
+        extractionResult: {
+          ...prev.extractionResult,
+          extracted_invoice: { ...prev.extractionResult.extracted_invoice, invoice_lines: nextLines },
+        },
+      };
+    });
   };
 
   const handleUpload = async () => {
@@ -433,7 +451,8 @@ export default function InvoiceUploadPage() {
                 fileUrl={fileUrl}
                 originalFilename={pipeline.fileName}
                 onCorrected={handleFieldCorrected}
-                onDetailsCorrected={handleDetailsCorrected}
+                onFieldChange={handleFieldChange}
+                onLineChange={handleLineChange}
               />
             )}
 

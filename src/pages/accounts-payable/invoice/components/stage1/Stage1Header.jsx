@@ -2,13 +2,8 @@ import { Info } from "lucide-react";
 import { VALIDATION_STAGES } from "../InvoiceProcessingPipeline";
 
 const STEP_LABELS = { extraction: "Extraction", vendor: "Vendor", buyer: "Buyer", gst: "GST Tax" };
-const TAB_TITLES = {
-  extraction: "Extraction Validation",
-  vendor: "Vendor Validation",
-  buyer: "Buyer Validation",
-  gst: "GST Tax Validation",
-};
-const TAB_NOUNS = { extraction: "amount", vendor: "vendor", buyer: "buyer", gst: "GST tax" };
+const TAB_TITLES = { vendor: "Vendor Validation", buyer: "Buyer Validation", gst: "GST Tax Validation" };
+const TAB_NOUNS = { vendor: "vendor", buyer: "buyer", gst: "GST tax" };
 
 const STATUS_TEXT = { SUCCESS: "Completed", RUNNING: "In Progress", FAILED: "Failed", SKIPPED: "Skipped", WAITING: "Waiting" };
 
@@ -21,34 +16,35 @@ const STATUS_COLOR = {
 };
 
 /**
- * Page header for the Stage 1 review screens: title/subtitle on the left (driven by which panel
- * is active) and the four-stage numbered stepper on the right, driven entirely by
- * `pipeline.validation.stages` — the same backend stage data InvoiceProcessingPipeline already
- * renders, just reused here in the horizontal numbered layout the target design calls for. The
- * "Extraction" is switchable only once it's FAILED (ExtractionAmountsPanel lets the user correct
- * the amount fields that failed reconciliation) — it stays informational-only otherwise, since
- * there's no panel for a passing extraction stage. Vendor/Buyer/GST Tax double as the tab switcher
- * when `onSelectStage` is provided, disabled while WAITING so users can't jump ahead of backend
- * progress.
+ * Page header for the Stage 1 review screens: title/subtitle on the left, the four-stage
+ * numbered stepper ("pipeline flow") on the right — driven entirely by `pipeline.validation.
+ * stages`, the same backend stage data InvoiceProcessingPipeline already renders. Vendor/Buyer/
+ * GST Tax double as the tab switcher when `onSelectStage` is provided, disabled while WAITING so
+ * users can't jump ahead of backend progress. "Extraction" is always informational only — there's
+ * no panel for it, it only ever shows a pass/fail/running status. Passing `activeTab={null}` and
+ * omitting `onSelectStage` renders a fully non-interactive status strip (used once Extraction
+ * Validation has failed and there's nothing left to switch between).
  */
 export default function Stage1Header({ stages, activeTab, onSelectStage }) {
   return (
     <div className="mb-5 flex flex-col gap-4 border-b border-gray-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-bold text-gray-900">
-          {TAB_TITLES[activeTab] || "Vendor Validation"}
-          <Info
-            className="h-4 w-4 text-gray-400"
-            aria-hidden="true"
-            title="Review each extracted field against the original document before proceeding to the next stage."
-          />
+          {TAB_TITLES[activeTab] || "Invoice Validation"}
+          {activeTab && (
+            <Info
+              className="h-4 w-4 text-gray-400"
+              aria-hidden="true"
+              title="Review each extracted field against the original document before proceeding to the next stage."
+            />
+          )}
         </h1>
         <p className="mt-1 flex items-start gap-1.5 text-sm text-gray-500">
           <span>
-            Verify {TAB_NOUNS[activeTab] || "vendor"} details extracted from the invoice. Click on any field to view and compare with the
-            original document.
+            {activeTab
+              ? `Verify ${TAB_NOUNS[activeTab] || "vendor"} details extracted from the invoice. Click on any field to view and compare with the original document.`
+              : "Progress through Extraction, Vendor, Buyer, and GST Tax validation."}
           </span>
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden="true" />
         </p>
       </div>
 
@@ -56,7 +52,7 @@ export default function Stage1Header({ stages, activeTab, onSelectStage }) {
         {VALIDATION_STAGES.map((stage, index) => {
           const status = stages?.[stage.key]?.status || "WAITING";
           const colors = STATUS_COLOR[status] || STATUS_COLOR.WAITING;
-          const isSwitchable = onSelectStage && (stage.key !== "extraction" || status === "FAILED");
+          const isSwitchable = Boolean(onSelectStage) && stage.key !== "extraction";
           const disabled = isSwitchable && status === "WAITING";
           const isActive = stage.key === activeTab;
 
