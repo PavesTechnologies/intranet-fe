@@ -118,6 +118,17 @@ function getPrimaryAction(status, { acquiring, calculatingTax, onAcquire, onReVa
         variant: "primary",
         className: !hasSnapshotId ? "opacity-50 cursor-not-allowed" : "",
       };
+    case "INVOICED":
+      return {
+        label: "View Invoice",
+        icon: ArrowRight,
+        onClick: hasSnapshotId
+          ? onContinueToTax
+          : () => showStatusToast("Billing snapshot information is unavailable. Please refresh the billing data.", "error"),
+        disabled: !hasSnapshotId,
+        variant: "primary",
+        className: !hasSnapshotId ? "opacity-50 cursor-not-allowed" : "",
+      };
     default:
       return null;
   }
@@ -527,6 +538,14 @@ export default function AcquisitionDetail() {
       return;
     }
 
+    const st = String(config?.billingStatus || "").toUpperCase();
+    if (st === "INVOICED") {
+      navigate(`/account-receivable/invoices/${realSnapshotId}`, {
+        state: { config, acquisitionResults },
+      });
+      return;
+    }
+
     // Navigate to the Tax Calculation page where the user can review and calculate tax
     navigate(`/account-receivable/tax-calculation/${realSnapshotId}`, {
       state: { config, acquisitionResults },
@@ -649,7 +668,8 @@ export default function AcquisitionDetail() {
     statusUpper === "READY_FOR_TAX" ||
     statusUpper === "READY" ||
     statusUpper === "IN_TAX" ||
-    statusUpper === "TAX_COMPLETED";
+    statusUpper === "TAX_COMPLETED" ||
+    statusUpper === "INVOICED";
   const snapshotNumber = isAcquired ? acquisitionResults?.labor?.snapshotNumber || config.snapshotNumber || null : null;
   const realSnapshotId = config.snapshotId || acquisitionResults?.labor?.snapshotId || null;
 

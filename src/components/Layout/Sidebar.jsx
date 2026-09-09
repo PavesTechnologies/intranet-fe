@@ -106,6 +106,10 @@ const accountReceivableSubmenu = [
     to: "/account-receivable/tax-calculation",
   },
   {
+    label: "Invoice Generation",
+    to: "/account-receivable/invoice-generation",
+  },
+  {
     label: "Configurations",
     to: "/account-receivable/master-data",
   },

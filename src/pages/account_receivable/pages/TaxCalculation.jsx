@@ -8,6 +8,8 @@ import {
   Loader2,
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
 } from "lucide-react";
 
 import { PageCard, PageCardContent } from "../../../components/Cards/PageCard";
@@ -23,6 +25,11 @@ import {
   getTaxCalculation,
   getTaxCalculationErrorMessage,
 } from "../services/taxCalculationService";
+import {
+  generateInvoice,
+  getInvoice,
+  getInvoiceErrorMessage,
+} from "../services/invoiceService";
 import {
   getBillingSnapshotByPeriod,
   getAcquiredSnapshotMetadata,
@@ -87,6 +94,12 @@ export default function TaxCalculation() {
   const [calcError, setCalcError] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Invoice workflow states
+  const [hasInvoice, setHasInvoice] = useState(false);
+  const [existingInvoice, setExistingInvoice] = useState(null);
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
+  const [invoiceError, setInvoiceError] = useState("");
+
   const effectiveSnapshotId = snapshotId || taxCalc?.billingSnapshotId || snapshotData?.snapshotId || null;
 
   const loadData = async () => {
@@ -98,6 +111,7 @@ export default function TaxCalculation() {
     setLoading(true);
     setErrorMsg("");
     setCalcError("");
+    setInvoiceError("");
 
     let existingCalc = null;
     // 1. Check if tax calculation already completed in backend
@@ -111,7 +125,23 @@ export default function TaxCalculation() {
       console.log("[TaxCalculation] No previous tax calculation found, awaiting calculation.");
     }
 
-    // 2. Hydrate snapshot data if not passed in location.state or incomplete
+    // 2. Check if invoice already generated on backend for this snapshot
+    try {
+      const inv = await getInvoice(effectiveSnapshotId);
+      if (inv && (inv.invoiceNumber || inv.invoiceId)) {
+        setHasInvoice(true);
+        setExistingInvoice(inv);
+      }
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        setHasInvoice(false);
+        setExistingInvoice(null);
+      } else {
+        console.warn("[TaxCalculation] Invoice status check warning:", err?.message);
+      }
+    }
+
+    // 3. Hydrate snapshot data if not passed in location.state or incomplete
     if (!snapshotData || !snapshotData.snapshotNumber || !snapshotData.totalAmount) {
       try {
         const configs = await fetchActiveBillingConfigurations();
@@ -202,6 +232,64 @@ export default function TaxCalculation() {
     }
   };
 
+  const handleGenerateInvoice = async () => {
+    if (!effectiveSnapshotId || generatingInvoice) return;
+
+    // Check if invoice is already known to exist
+    if (hasInvoice) {
+      showStatusToast("Invoice already generated.", "info");
+      navigate(`/account-receivable/invoices/${effectiveSnapshotId}`);
+      return;
+    }
+
+    setGeneratingInvoice(true);
+    setInvoiceError("");
+
+    try {
+      const inv = await generateInvoice(effectiveSnapshotId);
+      showStatusToast("Invoice generated successfully.", "success");
+      setHasInvoice(true);
+      setExistingInvoice(inv);
+
+      if (snapshotData?.projectId) {
+        saveAcquiredSnapshotMetadata(snapshotData.projectId, {
+          status: "INVOICED",
+        });
+      }
+
+      setSnapshotData((prev) =>
+        prev
+          ? {
+              ...prev,
+              billingStatus: "INVOICED",
+              status: "INVOICED",
+            }
+          : prev
+      );
+
+      navigate(`/account-receivable/invoices/${effectiveSnapshotId}`);
+    } catch (err) {
+      const status = err?.response?.status;
+      const msg = getInvoiceErrorMessage(err, "Invoice generation could not be completed.");
+
+      if (status === 409 || msg.toLowerCase().includes("already")) {
+        showStatusToast("Invoice already generated.", "info");
+        setHasInvoice(true);
+        try {
+          const inv = await getInvoice(effectiveSnapshotId);
+          if (inv) setExistingInvoice(inv);
+        } catch {
+          // ignore
+        }
+      } else {
+        setInvoiceError(msg);
+        showStatusToast(msg, "error");
+      }
+    } finally {
+      setGeneratingInvoice(false);
+    }
+  };
+
   // If no snapshotId exists (standalone route /account-receivable/tax-calculation), render Tax Calculation Console
   if (!effectiveSnapshotId) {
     return <TaxCalculationConsole />;
@@ -275,7 +363,10 @@ export default function TaxCalculation() {
   const totalTaxAmount = taxCalc?.totalTaxAmount ?? 0;
   const grandTotal = taxCalc?.grandTotal ?? (taxableAmount + totalTaxAmount);
   const isTaxCompleted = Boolean(taxCalc && (taxCalc.components !== undefined || taxCalc.totalTaxAmount !== undefined));
-  const displayStatus = isTaxCompleted
+  const isInvoiced = Boolean(hasInvoice || snapshotData?.billingStatus === "INVOICED" || snapshotData?.status === "INVOICED");
+  const displayStatus = isInvoiced
+    ? "INVOICED"
+    : isTaxCompleted
     ? (taxCalc?.status || "TAX_COMPLETED")
     : (snapshotData?.status || snapshotData?.billingStatus || "READY_FOR_TAX");
 
@@ -306,7 +397,7 @@ export default function TaxCalculation() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="small"
@@ -325,10 +416,43 @@ export default function TaxCalculation() {
             Acquisition Detail
           </Button>
 
-          {isTaxCompleted ? (
-            <Button variant="outline" size="small" onClick={loadData} className="flex items-center gap-1.5 text-xs">
-              <RefreshCw className="h-3.5 w-3.5" /> Refresh
-            </Button>
+          {isInvoiced ? (
+            <>
+              <Button variant="outline" size="small" onClick={loadData} className="flex items-center gap-1.5 text-xs">
+                <RefreshCw className="h-3.5 w-3.5" /> Refresh
+              </Button>
+              <Button
+                variant="primary"
+                size="small"
+                onClick={() => navigate(`/account-receivable/invoices/${effectiveSnapshotId}`)}
+                className="flex items-center gap-1.5 text-xs font-semibold bg-[#0A0082] hover:bg-[#0A0082]/90 text-white shadow-sm"
+              >
+                <FileText className="h-3.5 w-3.5" /> View Invoice
+              </Button>
+            </>
+          ) : isTaxCompleted ? (
+            <>
+              <Button variant="outline" size="small" onClick={loadData} className="flex items-center gap-1.5 text-xs">
+                <RefreshCw className="h-3.5 w-3.5" /> Refresh
+              </Button>
+              <Button
+                variant="primary"
+                size="small"
+                onClick={handleGenerateInvoice}
+                disabled={generatingInvoice}
+                className="flex items-center gap-1.5 text-xs font-semibold bg-[#0A0082] hover:bg-[#0A0082]/90 text-white shadow-sm"
+              >
+                {generatingInvoice ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating Invoice...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-3.5 w-3.5" /> Generate Invoice
+                  </>
+                )}
+              </Button>
+            </>
           ) : (
             <Button
               variant="primary"
@@ -350,6 +474,77 @@ export default function TaxCalculation() {
           )}
         </div>
       </div>
+
+      {/* Workflow Guidance Banner */}
+      {isInvoiced ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 sm:flex-row sm:items-center sm:justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-emerald-950">Invoice Generated</h3>
+              <p className="text-xs text-emerald-800">
+                Authoritative financial invoice has been created and persisted for this billing snapshot.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="primary"
+            size="small"
+            onClick={() => navigate(`/account-receivable/invoices/${effectiveSnapshotId}`)}
+            className="flex items-center justify-center gap-1.5 text-xs font-semibold bg-[#0A0082] hover:bg-[#0A0082]/90 text-white shadow-sm shrink-0"
+          >
+            <FileText className="h-3.5 w-3.5" /> View Invoice <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ) : isTaxCompleted ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-indigo-200 bg-indigo-50/70 p-4 sm:flex-row sm:items-center sm:justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-700">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-indigo-950">Tax Calculation Completed</h3>
+                <span className="text-xs font-semibold text-indigo-600">&rarr;</span>
+                <span className="text-xs font-bold text-indigo-800">Generate Invoice</span>
+              </div>
+              <p className="text-xs text-indigo-700">
+                Tax components and grand total are verified. Click "Generate Invoice" to create the authoritative invoice.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="primary"
+            size="small"
+            onClick={handleGenerateInvoice}
+            disabled={generatingInvoice}
+            className="flex items-center justify-center gap-1.5 text-xs font-semibold bg-[#0A0082] hover:bg-[#0A0082]/90 text-white shadow-sm shrink-0"
+          >
+            {generatingInvoice ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating Invoice...
+              </>
+            ) : (
+              <>
+                <FileText className="h-3.5 w-3.5" /> Generate Invoice <ArrowRight className="h-3.5 w-3.5" />
+              </>
+            )}
+          </Button>
+        </div>
+      ) : null}
+
+      {/* Invoice Generation Notice Alert */}
+      {invoiceError && (
+        <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800 shadow-sm">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 text-rose-600 mt-0.5" />
+          <div className="space-y-1">
+            <div className="font-semibold text-rose-900">Invoice Generation Notice</div>
+            <div className="font-medium text-rose-800">{invoiceError}</div>
+          </div>
+        </div>
+      )}
 
       {/* Backend Tax Engine Error Alert if calculation POST failed */}
       {calcError && (
@@ -553,15 +748,45 @@ export default function TaxCalculation() {
 
         {/* Grand Total — the single strongest visual element on the page */}
         <div className="p-5">
-          <div className="rounded-xl border-2 border-indigo-200 bg-indigo-50/80 p-4 sm:p-5 flex items-center justify-between shadow-sm">
+          <div className="rounded-xl border-2 border-indigo-200 bg-indigo-50/80 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
             <div>
               <span className="block text-xs font-bold uppercase tracking-wider text-indigo-700">Grand Total</span>
               <span className="text-xs text-indigo-600">
-                {isTaxCompleted ? "Taxable Amount + Total Tax" : "Tax calculation pending"}
+                {isTaxCompleted ? "Taxable Amount + Total Tax (Backend Authoritative)" : "Tax calculation pending"}
               </span>
             </div>
-            <div className="font-mono text-2xl font-extrabold text-indigo-950 sm:text-3xl">
-              {formatCurrency(grandTotal, currency)}
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="font-mono text-2xl font-extrabold text-indigo-950 sm:text-3xl">
+                {formatCurrency(grandTotal, currency)}
+              </div>
+              {isInvoiced ? (
+                <Button
+                  variant="primary"
+                  size="small"
+                  onClick={() => navigate(`/account-receivable/invoices/${effectiveSnapshotId}`)}
+                  className="bg-[#0A0082] hover:bg-[#0A0082]/90 text-white text-xs font-semibold px-4 py-2 shadow-sm"
+                >
+                  <FileText className="mr-1.5 h-3.5 w-3.5" /> View Invoice
+                </Button>
+              ) : isTaxCompleted ? (
+                <Button
+                  variant="primary"
+                  size="small"
+                  onClick={handleGenerateInvoice}
+                  disabled={generatingInvoice}
+                  className="bg-[#0A0082] hover:bg-[#0A0082]/90 text-white text-xs font-semibold px-4 py-2 shadow-sm"
+                >
+                  {generatingInvoice ? (
+                    <span className="flex items-center gap-1.5">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating Invoice...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5" /> Generate Invoice
+                    </span>
+                  )}
+                </Button>
+              ) : null}
             </div>
           </div>
         </div>

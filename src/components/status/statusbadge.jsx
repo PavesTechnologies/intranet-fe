@@ -28,6 +28,10 @@ const StatusBadge = ({ label, size = "md" }) => {
     displayLabel = "In Progress";
     bgColor = "bg-indigo-50 border border-indigo-200";
     textColor = "text-indigo-700 font-medium";
+  } else if (rawUpper === "GENERATED" || normalized === "generated") {
+    displayLabel = "Invoice Generated";
+    bgColor = "bg-emerald-100 border border-emerald-300";
+    textColor = "text-emerald-800 font-bold";
   } else if (rawUpper === "INVOICED" || normalized === "invoiced") {
     displayLabel = "Invoiced";
     bgColor = "bg-blue-100 border border-blue-300";
