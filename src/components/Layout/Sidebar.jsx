@@ -141,7 +141,7 @@ const airsSubmenu = [
   { label: "Settings", to: "/ai-screening/settings" },
 ];
 
-// Interview Calendar (/airs/interview-calendar) is HR_ADMIN/RECRUITER only
+// Interview Calendar (/ai-screening/interview-calendar) is HR_ADMIN/RECRUITER only
 // — same roles the tab it replaced was gated to — so like Prompt Templates
 // below, it's added directly to those two submenus rather than to the
 // shared airsSubmenu, which would leak it into the HIRING_MANAGER/HR
@@ -152,7 +152,7 @@ const interviewCalendarItem = { label: "Interview Calendar", to: "/ai-screening/
 // Prompt Templates below (HR_ADMIN-only, not part of the general airsSubmenu).
 // "Candidates" here is deliberately its own entry (not filtered in from
 // airsSubmenu above) — it points at the HR_ADMIN-only Global Candidate
-// Directory (/airs/global-candidates, GET /candidates), NOT the
+// Directory (/ai-screening/global-candidates, GET /candidates), NOT the
 // campaign-scoped Candidates & Ranking page airsSubmenu's own "Candidates"
 // entry points to.
 const hrAdminAirsSubmenu = [
@@ -251,7 +251,7 @@ const Sidebar = ({ isCollapsed, activeApplication = APPLICATIONS.INTRANET }) => 
   const isHrAdmin = hasRole(["HR_ADMIN"]);
   const isRecruiter = hasRole(["RECRUITER"]);
   // Everyone else (HIRING_MANAGER, HR) falls through to the full menu, which
-  // must not offer Dashboard — /airs/dashboard is HR_ADMIN/RECRUITER only, so
+  // must not offer Dashboard — /ai-screening/dashboard is HR_ADMIN/RECRUITER only, so
   // the link would lead straight to the unauthorized page.
   const filteredAirsSubmenu = isHrAdmin
     ? hrAdminAirsSubmenu

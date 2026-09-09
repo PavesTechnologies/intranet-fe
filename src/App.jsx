@@ -147,8 +147,8 @@ import AirsPlaceholder from "./pages/airs/pages/AirsPlaceholder.jsx";
 import ResumeIntakePage from "./pages/airs/resume-intake/ResumeIntakePage.jsx";
 import IntakeFlowPage from "./pages/airs/resume-intake/intake/IntakeFlowPage.jsx";
 import ReviewPage from "./pages/airs/resume-intake/intake/ReviewPage.jsx";
-import CandidateRankingPage from "./pages/airs/candidates/CandidateRankingPage.jsx";
-import CandidateScorePage from "./pages/airs/candidates/CandidateScore/CandidateScorePage.jsx";
+import CandidateRankingPage from "./pages/ai-screening/candidates/CandidateRankingPage.jsx";
+import CandidateScorePage from "./pages/ai-screening/candidates/CandidateScore/CandidateScorePage.jsx";
 import InterviewQueuePage from "./pages/airs/interview-queue/InterviewQueuePage.jsx";
 import InterviewCalendarPage from "./pages/airs/interview-calendar/InterviewCalendarPage.jsx";
 import PipelineBoardPage from "./pages/airs/pipeline/PipelineBoardPage.jsx";
@@ -1511,7 +1511,7 @@ const AppRoutes = () => {
             }
           />
           {/* Global Candidate Directory (GET /candidates) — distinct from
-              /airs/candidates below, which is the campaign-scoped
+              /ai-screening/candidates below, which is the campaign-scoped
               Candidates & Ranking page. HR_ADMIN only, matching the
               backend's require_roles(UserRole.HR_ADMIN) on this endpoint. */}
           <Route
