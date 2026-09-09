@@ -299,6 +299,8 @@ import BillingApprovals from "./pages/account_receivable/pages/BillingApprovals.
 import BillingDataAcquisition from "./pages/account_receivable/pages/BillingDataAcquisition.jsx";
 import AcquisitionDetail from "./pages/account_receivable/pages/AcquisitionDetail.jsx";
 import TaxCalculationPage from "./pages/account_receivable/pages/TaxCalculation.jsx";
+import InvoiceGeneration from "./pages/account_receivable/pages/InvoiceGeneration.jsx";
+import InvoiceDetail from "./pages/account_receivable/pages/InvoiceDetail.jsx";
 import Configurations from "./pages/account_receivable/pages/Configurations.jsx";
 import MasterDataOverview from "./pages/account_receivable/pages/master-data/MasterDataOverview.jsx";
 import BillingTypeMasterPage from "./pages/account_receivable/pages/master-data/BillingTypeMasterPage.jsx";
@@ -683,7 +685,7 @@ const AppRoutes = () => {
               access to everything below unchanged; Finance Executive only
               gets the Maker (create/draft/submit) routes; Finance Manager
               only gets the Checker (billing-approvals) route. */}
-          <Route path="/account-receivable/*" element={<AccountReceivableLayout />}>
+          <Route path="/account-receivable" element={<AccountReceivableLayout />}>
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<ProtectedRoute allowedRoles={AR_MAKER_ROLES}><AccountReceivableDashboard /></ProtectedRoute>} />
             <Route
@@ -737,6 +739,14 @@ const AppRoutes = () => {
             <Route
               path="tax-calculation/:snapshotId"
               element={<ProtectedRoute allowedRoles={AR_MAKER_ROLES}><TaxCalculationPage /></ProtectedRoute>}
+            />
+            <Route
+              path="invoice-generation"
+              element={<ProtectedRoute allowedRoles={AR_MAKER_ROLES}><InvoiceGeneration /></ProtectedRoute>}
+            />
+            <Route
+              path="invoices/:snapshotId"
+              element={<ProtectedRoute allowedRoles={AR_MAKER_ROLES}><InvoiceDetail /></ProtectedRoute>}
             />
             <Route
               path="configurations"
