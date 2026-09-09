@@ -462,7 +462,7 @@ export default function Campaigns() {
 
               return (<div
                   key={c.id}
-                  onClick={() => navigate(`/airs/campaigns/${c.id}`)}
+                  onClick={() => navigate(`/ai-screening/campaigns/${c.id}`)}
                   className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-4 cursor-pointer hover:border-blue-300 transition"
                 >
                   {/* Title + status + edit shortcut */}

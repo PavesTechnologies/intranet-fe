@@ -113,7 +113,7 @@ export default function PipelineCandidateScorecardPage({
   // is react-router's "default" sentinel). Not used when embedded as a modal —
   // onBackProp (closing the popup) takes over instead.
   const canGoBack = location.key !== "default";
-  const fallbackBackTo = resumeRow ? "/airs/resume-intake" : "/airs/pipeline";
+  const fallbackBackTo = resumeRow ? "/ai-screening/resume-intake" : "/ai-screening/pipeline";
   const handleBack =
     onBackProp ??
     (() => {

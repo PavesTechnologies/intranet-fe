@@ -48,7 +48,7 @@ export default function InterviewQueuePage() {
         <ErrorState
           title="No campaign selected"
           message='Open a campaign and choose "Review Interviews" to see its interview queue.'
-          onRetry={() => navigate("/airs/campaigns")}
+          onRetry={() => navigate("/ai-screening/campaigns")}
         />
       </div>
     );

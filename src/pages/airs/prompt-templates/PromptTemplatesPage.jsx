@@ -91,7 +91,7 @@ export default function PromptTemplatesPage() {
         sortBy={list.sortBy}
         sortOrder={list.sortOrder}
         onSort={list.toggleSort}
-        onView={(pt) => navigate(`/airs/prompt-templates/${pt.id}/view`)}
+        onView={(pt) => navigate(`/ai-screening/prompt-templates/${pt.id}/view`)}
         onEdit={openEdit}
         onDelete={setDeleteTarget}
       />

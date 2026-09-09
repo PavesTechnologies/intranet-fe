@@ -50,7 +50,7 @@ export default function TalentPoolCandidateProfilePage() {
               ? "We couldn't load this candidate. Please try again."
               : "We couldn't find this candidate in the talent pool. They may have been removed."
           }
-          onRetry={error ? refetch : () => navigate("/airs/talent-pool")}
+          onRetry={error ? refetch : () => navigate("/ai-screening/talent-pool")}
         />
       </div>
     );

@@ -27,7 +27,7 @@ export default function NoVerifiedSkillsBanner({ candidate, onAddManualSkill }) 
 
   const goToResumeIntake = (message) => {
     toast.info(message);
-    navigate("/airs/resume-intake");
+    navigate("/ai-screening/resume-intake");
   };
 
   const excludeSkillNames = [

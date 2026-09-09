@@ -486,17 +486,17 @@ export default function UnknownSkillDetailPage() {
 
   const handleDeleted = () => {
     closeModal();
-    navigate("/airs/skill-ontology", { state: { tab: "unknown" } });
+    navigate("/ai-screening/skill-ontology", { state: { tab: "unknown" } });
   };
 
   const handleMapped = () => {
     closeModal();
-    navigate("/airs/skill-ontology", { state: { tab: "unknown" } });
+    navigate("/ai-screening/skill-ontology", { state: { tab: "unknown" } });
   };
 
   const handleCreated = () => {
     closeModal();
-    navigate("/airs/skill-ontology", { state: { tab: "unknown" } });
+    navigate("/ai-screening/skill-ontology", { state: { tab: "unknown" } });
   };
 
   return (
@@ -510,7 +510,7 @@ export default function UnknownSkillDetailPage() {
           <div className="flex items-start gap-4 flex-1 min-w-0">
             <button
               onClick={() =>
-                navigate("/airs/skill-ontology", { state: { tab: "unknown" } })
+                navigate("/ai-screening/skill-ontology", { state: { tab: "unknown" } })
               }
               className="p-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition shadow-sm shrink-0"
             >

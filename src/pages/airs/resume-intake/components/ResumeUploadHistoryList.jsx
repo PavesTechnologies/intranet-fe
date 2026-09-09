@@ -161,7 +161,7 @@ export default function ResumeUploadHistoryList({ files, isLoading, onRetried })
               title="View candidate resume"
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/airs/pipeline/candidates/${f.campaign_candidate_id}`, { state: { resume: f } });
+                navigate(`/ai-screening/pipeline/candidates/${f.campaign_candidate_id}`, { state: { resume: f } });
               }}
               className="h-8 w-8 !text-blue-600 hover:!text-blue-700 hover:bg-blue-50"
             >

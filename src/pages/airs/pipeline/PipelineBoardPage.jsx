@@ -69,7 +69,7 @@ export default function PipelineBoardPage() {
         <ErrorState
           title="No active campaigns"
           message="There are no active campaigns right now — a pipeline board needs at least one to show."
-          onRetry={() => navigate("/airs/campaigns")}
+          onRetry={() => navigate("/ai-screening/campaigns")}
         />
       </div>
     );
@@ -121,7 +121,7 @@ export default function PipelineBoardPage() {
               // campaign_candidate_id (card.id) — not the pipeline-only
               // scorecard, which only has resume-parsed data and no real
               // scores.
-              onCardClick={(card) => navigate(`/airs/candidates/${card.id}`)}
+              onCardClick={(card) => navigate(`/ai-screening/candidates/${card.id}`)}
             />
           ))}
         </div>

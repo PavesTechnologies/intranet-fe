@@ -188,7 +188,7 @@ export default function TalentPoolPage() {
                 onToggleSelect={toggleSelect}
                 onAdded={refetch}
                 onViewProfile={() =>
-                  navigate(`/airs/talent-pool/${item.candidate.candidate_id}`, { state: { item } })
+                  navigate(`/ai-screening/talent-pool/${item.candidate.candidate_id}`, { state: { item } })
                 }
               />
             ))}

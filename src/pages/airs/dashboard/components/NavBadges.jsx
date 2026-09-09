@@ -9,9 +9,9 @@ const REFRESH_MS = 60000;
 
 const BADGES = [
   { key: "fraud_review", label: "Fraud Review", icon: ShieldAlert,
-    to: "/airs/campaigns", tone: "bg-rose-50 text-rose-700 border-rose-200" },
+    to: "/ai-screening/campaigns", tone: "bg-rose-50 text-rose-700 border-rose-200" },
   { key: "ai_failures", label: "AI Failures", icon: AlertOctagon,
-    to: "/airs/campaigns", tone: "bg-amber-50 text-amber-700 border-amber-200" },
+    to: "/ai-screening/campaigns", tone: "bg-amber-50 text-amber-700 border-amber-200" },
 ];
 
 export default function NavBadges() {

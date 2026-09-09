@@ -35,7 +35,7 @@ function StageLink({ campaignId, stage, count }) {
   if (!count) return <span className="text-slate-300">0</span>;
   return (
     <Link
-      to={`/airs/campaigns/${campaignId}?tab=candidates&stage=${stage}`}
+      to={`/ai-screening/campaigns/${campaignId}?tab=candidates&stage=${stage}`}
       onClick={(e) => e.stopPropagation()}
       className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline tabular-nums"
     >
@@ -62,7 +62,7 @@ export default function CampaignTable({ campaigns, loading = false }) {
     return {
       id: c.id,
       rowClass: "hover:bg-slate-50/50 transition cursor-pointer",
-      onRowClick: () => navigate(`/airs/campaigns/${c.id}`),
+      onRowClick: () => navigate(`/ai-screening/campaigns/${c.id}`),
       campaign: (
         <div className="min-w-0 max-w-[160px] text-left">
           <div className="font-semibold text-slate-900 line-clamp-1" title={c.name}>{c.name}</div>

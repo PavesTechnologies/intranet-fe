@@ -33,7 +33,7 @@ export default function PromptTemplateViewPage() {
       <div className="p-8 bg-[#F8FAFC] min-h-screen">
         <div className="text-center py-16 bg-white border border-slate-200 rounded-xl">
           <p className="text-sm font-bold text-slate-700">We couldn't load this prompt template.</p>
-          <Button variant="outline" size="small" className="mt-4" onClick={() => navigate("/airs/prompt-templates")}>
+          <Button variant="outline" size="small" className="mt-4" onClick={() => navigate("/ai-screening/prompt-templates")}>
             Back to Prompt Templates
           </Button>
         </div>
@@ -62,7 +62,7 @@ export default function PromptTemplateViewPage() {
     try {
       await deletePromptTemplate(pt.id);
       toast.success("Prompt template deleted successfully.");
-      navigate("/airs/prompt-templates");
+      navigate("/ai-screening/prompt-templates");
     } catch (err) {
       toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to delete prompt template.");
     } finally {
@@ -76,7 +76,7 @@ export default function PromptTemplateViewPage() {
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => navigate("/airs/prompt-templates")}
+              onClick={() => navigate("/ai-screening/prompt-templates")}
               className="p-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition shadow-sm shrink-0"
             >
               <ArrowLeft size={18} />

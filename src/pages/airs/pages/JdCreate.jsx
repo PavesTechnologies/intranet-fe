@@ -12,7 +12,7 @@ export default function JdCreate() {
     <div className="p-8 bg-[#F8FAFC] min-h-screen text-slate-900 font-sans max-w-4xl mx-auto">
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-6 flex items-center gap-4">
         <button
-          onClick={() => navigate("/airs/jds")}
+          onClick={() => navigate("/ai-screening/jds")}
           className="p-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition shadow-sm shrink-0"
         >
           <ArrowLeft size={18} />
@@ -23,8 +23,8 @@ export default function JdCreate() {
       <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
         <JdForm
           editId={editId}
-          onSuccess={() => navigate("/airs/jds")}
-          onCancel={() => navigate("/airs/jds")}
+          onSuccess={() => navigate("/ai-screening/jds")}
+          onCancel={() => navigate("/ai-screening/jds")}
         />
       </div>
     </div>

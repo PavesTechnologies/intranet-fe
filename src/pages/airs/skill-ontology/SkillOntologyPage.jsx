@@ -258,7 +258,7 @@ export default function SkillOntologyPage() {
             <SkillTable
               skills={list.skills}
               isLoading={list.isLoading}
-              onView={(skill) => navigate(`/airs/skill-ontology/${skill.id}`)}
+              onView={(skill) => navigate(`/ai-screening/skill-ontology/${skill.id}`)}
               onEdit={openEdit}
               onDeactivate={openDeactivate}
               onReactivate={setReactivateTarget}
@@ -297,7 +297,7 @@ export default function SkillOntologyPage() {
               onPromote={handlePromote}
               onBulkDone={unknown.refresh}
               onView={(skill) =>
-                navigate(`/airs/skill-ontology/unknown/${skill.id}`, { state: { skill } })
+                navigate(`/ai-screening/skill-ontology/unknown/${skill.id}`, { state: { skill } })
               }
             />
           )}

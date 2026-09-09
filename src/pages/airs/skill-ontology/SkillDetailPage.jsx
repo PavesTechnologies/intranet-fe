@@ -153,7 +153,7 @@ export default function SkillDetailPage() {
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => navigate("/airs/skill-ontology")}
+              onClick={() => navigate("/ai-screening/skill-ontology")}
               className="p-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition shadow-sm shrink-0"
             >
               <ArrowLeft size={18} />
@@ -256,7 +256,7 @@ export default function SkillDetailPage() {
                     {skill.children.map((child) => (
                       <button
                         key={child.id}
-                        onClick={() => navigate(`/airs/skill-ontology/${child.id}`)}
+                        onClick={() => navigate(`/ai-screening/skill-ontology/${child.id}`)}
                         className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 transition text-left"
                       >
                         <span className="text-[13px] font-semibold text-slate-900">{child.canonicalName}</span>

@@ -36,7 +36,7 @@ export default function GlobalCandidatesPage() {
   } = useCandidateDirectory();
 
   const viewProfile = (candidate) => {
-    navigate(`/airs/pipeline/candidates/${candidate.candidate_id}`, {
+    navigate(`/ai-screening/pipeline/candidates/${candidate.candidate_id}`, {
       state: {
         resume: {
           candidate_full_name: candidate.full_name,

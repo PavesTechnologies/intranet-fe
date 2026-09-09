@@ -326,7 +326,7 @@ export default function InterviewCalendarTab({ campaignId }) {
   // Interview tab via CandidateScorePage's ?tab= deep-link, rather than
   // landing on its default Summary tab and requiring one more click.
   // (There's still no deep-link to a specific *round* within that tab.)
-  const goToCandidate = (entry) => navigate(`/airs/candidates/${entry.campaign_candidate_id}?tab=interview`);
+  const goToCandidate = (entry) => navigate(`/ai-screening/candidates/${entry.campaign_candidate_id}?tab=interview`);
 
   const calendarApi = () => calendarRef.current?.getApi();
 

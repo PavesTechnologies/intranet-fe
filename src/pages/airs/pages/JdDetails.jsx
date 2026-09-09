@@ -647,7 +647,7 @@ export default function JdDetails() {
         <AlertTriangle className="h-12 w-12 text-rose-500 mb-4" />
         <h2 className="text-lg font-bold text-slate-800">Job Description Not Found</h2>
         <p className="text-xs text-slate-500 mt-1">The requested JD does not exist or has been deleted.</p>
-        <Link to="/airs/jds" className="mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg">
+        <Link to="/ai-screening/jds" className="mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg">
           Back to Library
         </Link>
       </div>
@@ -1380,7 +1380,7 @@ export default function JdDetails() {
                   return (
                     <div
                       key={c.id || idx}
-                      onClick={() => c.id && navigate(`/airs/campaigns/${c.id}`)}
+                      onClick={() => c.id && navigate(`/ai-screening/campaigns/${c.id}`)}
                       className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-4 cursor-pointer hover:border-blue-300 transition"
                     >
                       {/* Title + status */}

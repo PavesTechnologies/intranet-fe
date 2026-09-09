@@ -129,16 +129,16 @@ const accountReceivableCheckerSubmenu = accountReceivableSubmenu.filter(
 );
 
 const airsSubmenu = [
-  { label: "Dashboard", to: "/airs/dashboard" },
-  { label: "JD Management", to: "/airs/jds" },
-  { label: "Campaigns", to: "/airs/campaigns" },
-  { label: "Resume Intake", to: "/airs/resume-intake" },
-  { label: "Pipeline", to: "/airs/pipeline" },
-  { label: "Candidates", to: "/airs/candidates" },
-  { label: "Skill Ontology", to: "/airs/skill-ontology" },
-  { label: "Talent Pool", to: "/airs/talent-pool" },
-  { label: "Analytics", to: "/airs/analytics" },
-  { label: "Settings", to: "/airs/settings" },
+  { label: "Dashboard", to: "/ai-screening/dashboard" },
+  { label: "JD Management", to: "/ai-screening/jds" },
+  { label: "Campaigns", to: "/ai-screening/campaigns" },
+  { label: "Resume Intake", to: "/ai-screening/resume-intake" },
+  { label: "Pipeline", to: "/ai-screening/pipeline" },
+  { label: "Candidates", to: "/ai-screening/candidates" },
+  { label: "Skill Ontology", to: "/ai-screening/skill-ontology" },
+  { label: "Talent Pool", to: "/ai-screening/talent-pool" },
+  { label: "Analytics", to: "/ai-screening/analytics" },
+  { label: "Settings", to: "/ai-screening/settings" },
 ];
 
 // Interview Calendar (/airs/interview-calendar) is HR_ADMIN/RECRUITER only
@@ -146,7 +146,7 @@ const airsSubmenu = [
 // below, it's added directly to those two submenus rather than to the
 // shared airsSubmenu, which would leak it into the HIRING_MANAGER/HR
 // fallback menu further down.
-const interviewCalendarItem = { label: "Interview Calendar", to: "/airs/interview-calendar" };
+const interviewCalendarItem = { label: "Interview Calendar", to: "/ai-screening/interview-calendar" };
 
 // HR_ADMIN gets a trimmed-down AIRS menu — only these items, plus
 // Prompt Templates below (HR_ADMIN-only, not part of the general airsSubmenu).
@@ -157,10 +157,10 @@ const interviewCalendarItem = { label: "Interview Calendar", to: "/airs/intervie
 // entry points to.
 const hrAdminAirsSubmenu = [
   ...airsSubmenu.filter((item) => ["Dashboard", "JD Management", "Campaigns", "Pipeline"].includes(item.label)),
-  { label: "Candidates", to: "/airs/global-candidates" },
+  { label: "Candidates", to: "/ai-screening/global-candidates" },
   ...airsSubmenu.filter((item) => ["Talent Pool", "Skill Ontology"].includes(item.label)),
   interviewCalendarItem,
-  { label: "Prompt Templates", to: "/airs/prompt-templates" },
+  { label: "Prompt Templates", to: "/ai-screening/prompt-templates" },
 ];
 
 // RECRUITER gets a trimmed-down AIRS menu — only these items.
@@ -571,7 +571,7 @@ const Sidebar = ({ isCollapsed, activeApplication = APPLICATIONS.INTRANET }) => 
               onMouseLeave={handleAirsMouseLeave}
             >
               <div
-                className={`flex items-center gap-3 px-4 py-3 rounded-md text-xs font-medium cursor-pointer transition-all duration-200 ${location.pathname.startsWith("/airs")
+                className={`flex items-center gap-3 px-4 py-3 rounded-md text-xs font-medium cursor-pointer transition-all duration-200 ${location.pathname.startsWith("/ai-screening")
                   ? "bg-[#263383] text-white border-l-4 border-[#ff3d72]"
                   : "text-gray-300 hover:bg-[#0f1536] hover:text-white"
                   }`}

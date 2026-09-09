@@ -67,7 +67,7 @@ export default function CandidateScorePage() {
               ? "We couldn't load this candidate. Please try again."
               : "We couldn't find this candidate. They may have been removed."
           }
-          onRetry={() => navigate("/airs/candidates")}
+          onRetry={() => navigate("/ai-screening/candidates")}
         />
       </div>
     );

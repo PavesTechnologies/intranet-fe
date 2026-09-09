@@ -120,7 +120,7 @@ export default function CampaignDetails() {
     return (<div className="p-8 min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC]">
         <AlertTriangle className="h-12 w-12 text-rose-500 mb-4" />
         <h2 className="text-lg font-bold text-slate-800">Campaign Not Found</h2>
-        <Button variant="primary" size="small" className="mt-4" onClick={() => navigate("/airs/campaigns")}>
+        <Button variant="primary" size="small" className="mt-4" onClick={() => navigate("/ai-screening/campaigns")}>
           Back to Campaigns
         </Button>
       </div>
@@ -237,8 +237,8 @@ export default function CampaignDetails() {
           isActive={isActive}
           canViewTiming={canViewTimeline}
           canReviewInterviews={canReviewInterviews}
-          onViewCandidates={() => navigate(`/airs/candidates?campaign=${id}`)}
-          onReviewInterviews={() => navigate(`/airs/interview-queue?campaign=${id}`)}
+          onViewCandidates={() => navigate(`/ai-screening/candidates?campaign=${id}`)}
+          onReviewInterviews={() => navigate(`/ai-screening/interview-queue?campaign=${id}`)}
           onStageClick={(stage) => {
             setCandidateStageFilter(stage);
             setActiveTab("candidates");
@@ -377,7 +377,7 @@ function DetailsTab({ info, jd, scoring, limits, hm }) {
             <p className="text-[10px] uppercase font-bold tracking-wide text-slate-400">Job Description</p>
           </div>
           {jd.jd_id ? (<Link
-              to={`/airs/jds/${jd.jd_id}`}
+              to={`/ai-screening/jds/${jd.jd_id}`}
               className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1 min-w-0"
             >
               <span className="truncate">{jd.jd_title}</span>
@@ -746,7 +746,7 @@ function CandidatesTab({ campaignId, stageFilter = "", onStageFilterChange }) {
 
       <CandidateTable
         candidates={pageItems}
-        onView={(c) => navigate(`/airs/candidates/${c.id}`)}
+        onView={(c) => navigate(`/ai-screening/candidates/${c.id}`)}
         showViewButton={false}
         selectable={canAct}
         selectedIds={selectedIds}
@@ -1585,7 +1585,7 @@ function RejectionsTab({ campaignId, jdId, onAdjustThreshold }) {
                 {/* direct action link per recommendation */}
                 <div className="mt-1.5">
                   {rec.action === "REVIEW_JD_SKILLS" && jdId && (<Link
-                      to={`/airs/jds/${jdId}`}
+                      to={`/ai-screening/jds/${jdId}`}
                       className="text-[11px] font-bold text-amber-900 underline hover:text-amber-700 inline-flex items-center gap-1"
                     >
                       Review JD Skills <ExternalLink className="h-3 w-3" />

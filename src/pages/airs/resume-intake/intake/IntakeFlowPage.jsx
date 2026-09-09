@@ -60,7 +60,7 @@ export default function IntakeFlowPage() {
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate("/airs/resume-intake")}
+            onClick={() => navigate("/ai-screening/resume-intake")}
             className="p-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition shadow-sm shrink-0"
           >
             <ArrowLeft size={18} />

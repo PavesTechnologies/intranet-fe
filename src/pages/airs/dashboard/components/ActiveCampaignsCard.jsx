@@ -64,7 +64,7 @@ export default function ActiveCampaignsCard() {
             <div className="flex items-center justify-between mb-3">
                 <h3 className="font-bold text-sm text-slate-900">Active campaigns</h3>
                 <button
-                    onClick={() => navigate("/airs/campaigns")}
+                    onClick={() => navigate("/ai-screening/campaigns")}
                     className="text-xs font-semibold text-blue-600 hover:text-blue-700"
                 >
                     View all
@@ -88,7 +88,7 @@ export default function ActiveCampaignsCard() {
                         return (
                             <div
                                 key={c.id}
-                                onClick={() => navigate(`/airs/campaigns/${c.id}`)}
+                                onClick={() => navigate(`/ai-screening/campaigns/${c.id}`)}
                                 className="flex items-center justify-between gap-3 bg-slate-50 hover:bg-slate-100 rounded-lg px-3.5 py-2.5 cursor-pointer transition"
                             >
                                 <div className="min-w-0">

@@ -37,7 +37,7 @@ export default function CandidateRankingPage() {
         <ErrorState
           title="No campaign selected"
           message='Open a campaign and choose "View All Candidates" to see its candidate list.'
-          onRetry={() => navigate("/airs/campaigns")}
+          onRetry={() => navigate("/ai-screening/campaigns")}
         />
       </div>
     );
@@ -86,7 +86,7 @@ export default function CandidateRankingPage() {
       <div className="mb-4">
         <CandidateTable
           candidates={candidates}
-          onView={(c) => navigate(`/airs/candidates/${c.id}`)}
+          onView={(c) => navigate(`/ai-screening/candidates/${c.id}`)}
           onDeleted={refetch}
         />
       </div>

@@ -89,7 +89,7 @@ export default function JdProcessingList() {
     setViewingJdId(jdId);
     try {
       await getJDById(jdId);
-      navigate(`/airs/jds/${jdId}`);
+      navigate(`/ai-screening/jds/${jdId}`);
     } catch (err) {
       // Error toast already shown by getJDById.
     } finally {

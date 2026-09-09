@@ -15,7 +15,7 @@ export default function HierarchyPage() {
       <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate("/airs/skill-ontology")}
+            onClick={() => navigate("/ai-screening/skill-ontology")}
             className="p-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-100 transition shadow-sm shrink-0"
           >
             <ArrowLeft size={18} />
@@ -41,7 +41,7 @@ export default function HierarchyPage() {
             loadingIds={hierarchy.loadingIds}
             childrenById={hierarchy.childrenById}
             onToggle={hierarchy.toggleExpand}
-            onSelect={(node) => navigate(`/airs/skill-ontology/${node.id}`)}
+            onSelect={(node) => navigate(`/ai-screening/skill-ontology/${node.id}`)}
           />
         )}
       </div>

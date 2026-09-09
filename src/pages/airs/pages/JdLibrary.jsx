@@ -341,7 +341,7 @@ export default function JdLibrary() {
           </div>
         ),
         rowClass: "hover:bg-slate-50/50 transition cursor-pointer",
-        onRowClick: () => navigate(`/airs/jds/${jd.id}`),
+        onRowClick: () => navigate(`/ai-screening/jds/${jd.id}`),
       };
     });
   }, [paginatedJds, navigate, setCloseJdId, setDeleteJdId]);

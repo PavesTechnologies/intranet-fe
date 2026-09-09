@@ -43,7 +43,7 @@ export default function OverrideRateAlerts() {
         {alerts.map((a) => (
           <Link
             key={a.campaign_id}
-            to={`/airs/campaigns/${a.campaign_id}`}
+            to={`/ai-screening/campaigns/${a.campaign_id}`}
             className="flex items-center justify-between gap-3 bg-white border border-amber-100 rounded-lg px-3 py-2 hover:border-amber-300 transition"
           >
             <div className="min-w-0">

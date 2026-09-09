@@ -88,7 +88,7 @@ export default function AirsDashboardPage() {
 
   // HIRING_MANAGER has no dashboard of its own — send them to the campaign
   // list they are already scoped to rather than rendering an empty shell.
-  if (!isHRAdmin && !isRecruiter) return <Navigate to="/airs/campaigns" replace />;
+  if (!isHRAdmin && !isRecruiter) return <Navigate to="/ai-screening/campaigns" replace />;
 
   const s = summary.data;
   const cards = campaigns.data || [];
@@ -188,7 +188,7 @@ export default function AirsDashboardPage() {
                 onChange={setStatus}
               />
             </div>
-            <Link to="/airs/campaigns" className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 shrink-0">
+            <Link to="/ai-screening/campaigns" className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 shrink-0">
               View all
             </Link>
           </div>
@@ -224,7 +224,7 @@ export default function AirsDashboardPage() {
                 ? "Create a campaign from a verified job description to start screening."
                 : "Ask your HR Admin to assign you to a campaign, or start uploading to an existing one."}
               action={
-                <Link to={isHRAdmin ? "/airs/campaigns" : "/airs/resume-intake"}>
+                <Link to={isHRAdmin ? "/ai-screening/campaigns" : "/ai-screening/resume-intake"}>
                   <Button variant="primary" size="small">
                     {isHRAdmin ? "Go to Campaigns" : "Start Uploading"}
                   </Button>
